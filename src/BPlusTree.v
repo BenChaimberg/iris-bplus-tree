@@ -9,27 +9,37 @@ Section nary_tree.
 
   Inductive nary_tree : Set :=
   | leaf : list A -> nary_tree
-  | node : list (nary_tree) -> nary_tree.
+  | node : list nary_tree -> nary_tree.
 
   Fixpoint size (t : nary_tree) : nat :=
     match t with
     | leaf l => List.length l
     | node l => list_sum (map size l)
     end.
+
+  Fixpoint In (v : A) (t : nary_tree) {struct t} : Prop :=
+    match t with
+    | leaf l => List.In v l
+    | node l => (fix In_list (l : list nary_tree) :=
+                  match l with
+                  | [] => False
+                  | t :: ts => In v t \/ In_list ts
+                  end) l
+    end.
 End nary_tree.
 
-Section bplus_tree_model.
+Section bplus_tree_algos.
+  Definition new_bplus_tree : val :=
+    λ: "_", ref NONEV.
 
+End bplus_tree_algos.
+
+Section bplus_tree_model.
   Context `{!heapGS Σ}.
   Notation iProp := (iProp Σ).
+
   Variable b : nat.
   Hypothesis beven : Zeven b.
-
-  Fixpoint All {T} (P : T -> iProp) (ls : list T) : iProp :=
-    match ls with
-    | [] => True
-    | h :: t => P h ∗ All P t
-    end%I.
 
   Definition tree_spec := nary_tree val.
 
@@ -62,16 +72,16 @@ Section bplus_tree_model.
     | leaf _ l => ⌜ size _ t < b ⌝ -∗ is_list v l
     | node _ ts =>
         ⌜ size _ t >= b ⌝ -∗
-              (∃ ns : list val,
-                  ⌜ 2 <= length ns <= b ⌝ ∗
-                  is_list v ns ∗
-                  ((fix is_branching_root_node_list (ns : list val) (ts : list tree_spec) :=
-                     match ns, ts with
-                     | [], [] => True
-                     | n :: ns, t :: ts => is_node n t ∗ is_branching_root_node_list ns ts
-                     | _, _ => False
-                     end)
-                     ns ts))
+          (∃ ns : list val,
+              ⌜ 2 <= length ns <= b ⌝ ∗
+              is_list v ns ∗
+              ((fix is_branching_root_node_list (ns : list val) (ts : list tree_spec) :=
+                 match ns, ts with
+                 | [], [] => True
+                 | n :: ns, t :: ts => is_node n t ∗ is_branching_root_node_list ns ts
+                 | _, _ => False
+                 end)
+                 ns ts))
     end%I.
 
   Definition is_bplus_tree (v : val) (t : tree_spec) : iProp :=
@@ -79,3 +89,22 @@ Section bplus_tree_model.
 
 End bplus_tree_model.
 
+Section bplus_tree_proofs.
+  Context `{!heapGS Σ}.
+  Notation iProp := (iProp Σ).
+
+  Variable b : nat.
+  Hypothesis beven : Zeven b.
+
+  Theorem new_bplus_tree_spec:
+    {{{ True }}} new_bplus_tree #() {{{ v, RET v; is_bplus_tree b v (leaf val []) }}}.
+  Proof.
+    iIntros (Φ) "_ HPost".
+    wp_lam; wp_alloc v.
+    iApply "HPost".
+    iExists v, NONEV.
+    iFrame.
+    done.
+  Qed.
+
+End bplus_tree_proofs.
