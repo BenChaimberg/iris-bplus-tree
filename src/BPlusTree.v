@@ -698,22 +698,16 @@ Section bplus_tree.
                 NONE => #false
               | SOME "l" =>
                   let: "val" := Fst !"l" in
-                  match: "val" with
-                    InjL "ptr" =>
-                      let: "interval" := Fst !"ptr" in
-                      let: "low" := Fst "interval" in
-                      let: "high" := Snd "interval" in
-                      if: (BinOp LeOp "low" "target") && (BinOp LeOp "target" "high")
-                      then "search_bplus_tree" ("val", "target")
-                      else "search_node_list" (Snd !"l", "target")
-                  | InjR "ptr" =>
-                      let: "interval" := Fst !"ptr" in
-                      let: "low" := Fst "interval" in
-                      let: "high" := Snd "interval" in
-                      if: (BinOp LeOp "low" "target") && (BinOp LeOp "target" "high")
-                      then "search_bplus_tree" ("val", "target")
-                      else "search_node_list" (Snd !"l", "target")
-                  end
+                  let: "interval" :=
+                    match: "val" with
+                      InjL "ptr" => Fst !"ptr"
+                    | InjR "ptr" => Fst !"ptr"
+                    end in
+                  let: "low" := Fst "interval" in
+                  let: "high" := Snd "interval" in
+                  if: (BinOp LeOp "low" "target") && (BinOp LeOp "target" "high")
+                  then "search_bplus_tree" ("val", "target")
+                  else "search_node_list" (Snd !"l", "target")
               end in
               "f" ("lhd", "target")
         end%E.
