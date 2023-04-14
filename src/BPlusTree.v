@@ -107,7 +107,20 @@ Section nary_tree.
     done.
   Qed.
 
-  Axiom destruct_list_back : forall (l : list A), {x:A & {init:list A | l = init ++ [x] }}+{l = [] }.
+  Lemma destruct_list_back : forall (l : list A), {x:A & {init:list A | l = init ++ [x] }}+{l = [] }.
+  Proof.
+    induction l.
+    - right.
+      done.
+    - left.
+      destruct IHl.
+      + destruct s as [x [init ->]].
+        exists x, (a :: init).
+        done.
+      + rewrite e.
+        exists a, [].
+        done.
+  Qed.
 
   Definition nary_tree_interval t : (A * A) :=
     match t with
