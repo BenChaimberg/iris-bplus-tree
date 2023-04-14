@@ -79,7 +79,8 @@ Section nary_tree.
                  end)
             trees
         in
-        b / 2 <= length trees <= b ->
+        (** hidden because really hard to maintain *)
+        (* b / 2 <= length trees <= b -> *)
         ordeq_A low high ->
         Forall (fun (interval : A * A) =>
                   let (low', high') := interval in
@@ -282,13 +283,13 @@ Section nary_tree.
       assert (In_tree target t = false).
       { apply Forall_cons in H1.
         inversion H; subst.
-        apply Forall_cons in H8.
-        destruct H8.
+        apply Forall_cons in H7.
+        destruct H7.
         apply (proj1 H1); [done|].
         cbn in H0.
         cbn in intervals.
-        apply Forall_cons in H7.
-        destruct H7.
+        apply Forall_cons in H6.
+        destruct H6.
         destruct t;
           destruct interval as [low' high'];
           cbn;
@@ -302,23 +303,22 @@ Section nary_tree.
         done.
       + inversion H; subst.
         constructor.
-        * admit.
         * done.
         * cbn in intervals.
-          apply Forall_cons in H8.
+          apply Forall_cons in H7.
+          destruct H7.
+          done.
+        * apply Forall_cons in H8.
           destruct H8.
           done.
-        * apply Forall_cons in H9.
-          destruct H9.
-          done.
-        * cbn in intervals, H10.
+        * cbn in intervals, H9.
           destruct t;
             destruct interval;
-            destruct H10;
+            destruct H9;
             done.
       + cbn in H0; cbn.
         done.
-  Admitted.
+  Qed.
 
   Lemma nary_tree_in_interval_not_in_others target interval branch branches (wf : nary_tree_wf' (node interval (branch :: branches))) :
     ordeq_A (fst (nary_tree_interval branch)) target /\ ordeq_A target (snd (nary_tree_interval branch)) ->
@@ -330,9 +330,9 @@ Section nary_tree.
   Proof.
     intros (? & ?).
     inversion wf; subst;
-      clear wf H3 low high H4 H5.
-    apply Forall_cons in H6.
-    destruct H6 as [wf_branch wf_branches].
+      clear wf H3 low high H4.
+    apply Forall_cons in H5.
+    destruct H5 as [wf_branch wf_branches].
     induction branches as [|branch' branches]; [done|].
     apply Forall_cons in wf_branches.
     destruct wf_branches as [wf_branch' wf_branches].
@@ -349,8 +349,8 @@ Section nary_tree.
       { apply IHbranches; clear IHbranches.
         - done.
         - cbn.
-          cbn in intervals, H7.
-          destruct H7 as (? & ? & ?).
+          cbn in intervals, H6.
+          destruct H6 as (? & ? & ?).
           split; [|done].
           destruct branches; [done|].
           cbn in H2; cbn.
@@ -362,8 +362,8 @@ Section nary_tree.
       clear H1 IHbranches.
       rewrite orb_false_r.
 
-      cbn in intervals, H7.
-      destruct H7 as (ord_high_low' & _).
+      cbn in intervals, H6.
+      destruct H6 as (ord_high_low' & _).
       cbn; cbn in H0.
 
       assert (ord_A target low') as ord_target_low'
@@ -382,8 +382,8 @@ Section nary_tree.
       { apply IHbranches; clear IHbranches.
         - done.
         - cbn.
-          cbn in intervals, H7.
-          destruct H7 as (? & ? & ?).
+          cbn in intervals, H6.
+          destruct H6 as (? & ? & ?).
           split; [|done].
           destruct branches; [done|].
           cbn in H2; cbn.
@@ -395,14 +395,78 @@ Section nary_tree.
       clear H1 IHbranches.
       rewrite orb_false_r.
 
-      cbn in intervals, H7.
-      destruct H7 as (ord_high_low' & _).
+      cbn in intervals, H6.
+      destruct H6 as (ord_high_low' & _).
       cbn in H0.
       assert (ord_A target low') as ord_target_low'
           by (unfold ord_A, ordeq_A in *; lia).
 
       apply (target_below_not_in_node); done.
-  Admitted.
+
+    - destruct interval as (low & high), interval0 as (low' & high').
+      inversion_clear wf_branch' as [? ? ? ordeq_low'_high' hd_vals_low' last_vals_high' sorted_vals |].
+
+      assert ((fix In_aux (l : list nary_tree) : bool :=
+                 match l with
+                 | [] => false
+                 | t :: ts => In_tree target t || In_aux ts
+                 end) branches = false)
+        as not_in_branches.
+      { apply IHbranches; clear IHbranches.
+        - done.
+        - cbn.
+          cbn in intervals, H6.
+          destruct H6 as (? & ? & ?).
+          split; [|done].
+          destruct branches; [done|].
+          cbn in H2; cbn.
+          destruct n;
+            destruct interval;
+            unfold ord_A, ordeq_A in *;
+            lia. }
+      rewrite not_in_branches.
+      rewrite orb_false_r.
+
+      cbn in intervals, H6.
+      destruct H6 as (ord_high_low' & _).
+      cbn; cbn in H0.
+
+      assert (ord_A target low') as ord_target_low'
+          by (unfold ord_A, ordeq_A in *; lia).
+
+      apply (target_below_not_in_list _ low'); done.
+    - destruct interval as (low & high), interval0 as (low' & high').
+      inversion wf_branch'; subst.
+
+      assert ((fix In_aux (l : list nary_tree) : bool :=
+                 match l with
+                 | [] => false
+                 | t :: ts => In_tree target t || In_aux ts
+                 end) branches = false).
+      { apply IHbranches; clear IHbranches.
+        - done.
+        - cbn.
+          cbn in intervals, H6.
+          destruct H6 as (? & ? & ?).
+          split; [|done].
+          destruct branches; [done|].
+          cbn in H2; cbn.
+          destruct n;
+            destruct interval;
+            unfold ord_A, ordeq_A in *;
+            lia. }
+      rewrite H1.
+      clear H1 IHbranches.
+      rewrite orb_false_r.
+
+      cbn in intervals, H6.
+      destruct H6 as (ord_high_low' & _).
+      cbn in H0.
+      assert (ord_A target low') as ord_target_low'
+          by (unfold ord_A, ordeq_A in *; lia).
+
+      apply (target_below_not_in_node); done.
+  Qed.
 
 End nary_tree.
 
@@ -411,16 +475,6 @@ Section bplus_tree.
   Definition token_branch_e v := InjR v.
   Definition token_leaf_v v := InjLV v.
   Definition token_branch_v v := InjRV v.
-
-  (* Variable tval : Set. *)
-  (* Declare Scope tval_scope. *)
-  (* Delimit Scope tval_scope with t. *)
-  (* Variable teqb : tval -> tval -> bool. *)
-  (* Variable tord : tval -> tval -> Prop. *)
-  (* Notation "v1 < v2" := (tord v1 v2) : tval_scope. *)
-  (* Variable tval_val : tval -> val. *)
-  (* Notation "# v" := (tval_val v) : tval_scope. *)
-  (* Context (tval_dec : forall (v1 v2 : tval), Decision (v1 = v2)). *)
 
   Definition tval := nat.
   Variable (ninf pinf : tval).
@@ -455,7 +509,7 @@ Section bplus_tree.
   Qed.
 
   Definition tree_spec := nary_tree.
-  Definition tree_spec_wf := nary_tree_wf' b.
+  Definition tree_spec_wf := nary_tree_wf'.
 
   Section bplus_tree_model.
     Context `{!heapGS Σ}.
@@ -728,9 +782,6 @@ Section bplus_tree.
         iNext.
         iIntros (?) "[% Hlhd]".
         iApply "HPost".
-        (* iSplitR; [done|]. *)
-        (* iExists ptr, lhd. *)
-        (* iFrame. *)
         done.
 
       - iPoseProof (tree_node_token_branch with "Hv") as (?) "->".
@@ -764,49 +815,38 @@ Section bplus_tree.
                   iNext.
                   iIntros (?) "%".
                   iApply "HPost".
-                  (* iSplitR. *)
-                  (* {  *)iPureIntro.
-                    cbn.
-                    apply bool_decide_eq_true_1 in Heqb0.
-                    apply bool_decide_eq_true_1 in Heqb1.
-                    assert (low' <= target) as low'_le_target by lia.
-                    assert (target <= high') as target_le_high' by lia.
-                    assert (ordeq_A low' target) as ordeq_low'_target.
-                    { destruct low'_le_target.
-                      - left.
-                      - right.
-                        lia. }
-                    assert (ordeq_A target high') as ordeq_target_high'.
-                    { destruct target_le_high'.
-                      - left.
-                      - right.
-                        lia. }
-                    rewrite (nary_tree_in_interval_not_in_others b target (low, high) (leaf (low', high') l) trest tree_wf0 (conj ordeq_low'_target ordeq_target_high')).
-                    rewrite orb_false_r.
-                    done. (*  } *)
-                    (* iExists ptr, (InjRV #l0), (token_leaf_v #ptr' :: nrest). *)
-                    (* iSplitR; [done|]. *)
-                    (* iSplitL "Hptr"; [done|]. *)
-                    (* iSplitL "Hl0 Hnrest". *)
-                    (* { iExists l0, hd'. *)
-                    (*   iFrame. *)
-                    (*   done. } *)
-                    (* iSplitL "Htree"; [done|]. *)
-                    (* done. *)
+                  iPureIntro.
+                  cbn.
+                  apply bool_decide_eq_true_1 in Heqb0.
+                  apply bool_decide_eq_true_1 in Heqb1.
+                  assert (low' <= target) as low'_le_target by lia.
+                  assert (target <= high') as target_le_high' by lia.
+                  assert (ordeq_A low' target) as ordeq_low'_target.
+                  { destruct low'_le_target.
+                    - left.
+                    - right.
+                      lia. }
+                  assert (ordeq_A target high') as ordeq_target_high'.
+                  { destruct target_le_high'.
+                    - left.
+                    - right.
+                      lia. }
+                  rewrite (nary_tree_in_interval_not_in_others target (low, high) (leaf (low', high') l) trest tree_wf0 (conj ordeq_low'_target ordeq_target_high')).
+                  rewrite orb_false_r.
+                  done.
+
                ++ wp_load; wp_pure.
                   assert (tree_spec_wf (node (low, high) trest)) as x_wf.
-                  { inversion tree_wf0.
+                  { inversion_clear tree_wf0
+                      as [| ? ? ? ? ord_low_high intervals_in_interval trees_wf intervals_sorted ].
                     cbn in intervals.
-                    subst intervals.
-                    apply Forall_cons in H6.
-                    destruct H6.
-                    apply Forall_cons in H7.
-                    destruct H7.
-                    cbn in H8.
-                    destruct H8.
-                    apply node_wf; try done.
-                    (* length requirement is hard to maintain *)
-                    admit. }
+                    apply Forall_cons in intervals_in_interval.
+                    destruct intervals_in_interval.
+                    apply Forall_cons in trees_wf.
+                    destruct trees_wf.
+                    cbn in intervals_sorted.
+                    destruct intervals_sorted.
+                    apply node_wf; try done. }
 
                   iApply ("IH'" $! x_wf nrest hd' with "[Hnrest] [Hns]");
                     iClear "IH'";
@@ -814,52 +854,52 @@ Section bplus_tree.
                   iIntros (?) "%".
                   iApply "HPost".
                   iPureIntro.
-                  cbn; cbn in H1.
                   enough (In_list target l = false) as not_in_l.
-                  { rewrite not_in_l.
+                  { cbn.
+                    rewrite not_in_l.
                     rewrite orb_false_l.
                     done. }
                   assert (high' < target).
                   { apply bool_decide_eq_false_1 in Heqb1.
                     lia. }
-                  inversion tree_wf0; subst.
-                  apply Forall_cons in H9.
-                  destruct H9.
-                  inversion H1; subst.
-                  apply (target_above_not_in_list _ high' l); done.
+                  inversion_clear tree_wf0
+                      as [| ? ? ? ? ord_low_high intervals_in_interval trees_wf intervals_sorted ].
+                  apply Forall_cons in trees_wf.
+                  destruct trees_wf as [leaf_wf _].
+                  inversion leaf_wf; subst.
+                  apply (target_above_not_in_list _ high' _); done.
 
             -- wp_load; wp_pure.
                assert (tree_spec_wf (node (low, high) trest)) as x_wf.
-               { inversion tree_wf0.
-                 cbn in intervals.
-                 subst intervals.
-                 apply Forall_cons in H6.
-                 destruct H6.
-                 apply Forall_cons in H7.
-                 destruct H7.
-                 cbn in H8.
-                 destruct H8.
-                 apply node_wf; try done.
-                 (* length requirement is hard to maintain *)
-                 admit. }
+               { inversion_clear tree_wf0
+                      as [| ? ? ? ? ord_low_high intervals_in_interval trees_wf intervals_sorted ].
+                    cbn in intervals.
+                    apply Forall_cons in intervals_in_interval.
+                    destruct intervals_in_interval.
+                    apply Forall_cons in trees_wf.
+                    destruct trees_wf.
+                    cbn in intervals_sorted.
+                    destruct intervals_sorted.
+                    apply node_wf; try done. }
                iApply ("IH'" $! x_wf nrest hd' with "[Hnrest] [Hns]");
                  iClear "IH'";
                  try iFrame.
                iIntros (?) "%".
                iApply "HPost".
+               iPureIntro.
                enough (In_list target l = false) as not_in_l.
-               { iPureIntro.
-                 cbn.
+               { cbn.
                  rewrite not_in_l.
                  rewrite orb_false_l.
                  done. }
                assert (target < low').
                { apply bool_decide_eq_false_1 in Heqb0.
                  lia. }
-               inversion tree_wf0; subst.
-               apply Forall_cons in H9.
-               destruct H9.
-               inversion H1; subst.
+               inversion_clear tree_wf0
+                 as [| ? ? ? ? ord_low_high intervals_in_interval trees_wf intervals_sorted ].
+               apply Forall_cons in trees_wf.
+               destruct trees_wf as [leaf_wf _].
+               inversion leaf_wf; subst.
                apply (target_below_not_in_list _ low' _); done.
     Admitted.
 
