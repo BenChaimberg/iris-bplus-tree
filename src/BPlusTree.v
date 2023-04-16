@@ -690,26 +690,24 @@ Section bplus_tree.
             search_list ("lhd", "target")
         | InjR "ptr" =>
             let: "lhd" := Snd !"ptr" in
-            let: "f" :=
-            rec: "search_node_list" "arg" :=
-              let: "p" := Fst "arg" in
-              let: "target" := Snd "arg" in
-              match: "p" with
-                NONE => #false
-              | SOME "l" =>
-                  let: "val" := Fst !"l" in
-                  let: "interval" :=
-                    match: "val" with
-                      InjL "ptr" => Fst !"ptr"
-                    | InjR "ptr" => Fst !"ptr"
-                    end in
-                  let: "low" := Fst "interval" in
-                  let: "high" := Snd "interval" in
-                  if: (BinOp LeOp "low" "target") && (BinOp LeOp "target" "high")
-                  then "search_bplus_tree" ("val", "target")
-                  else "search_node_list" (Snd !"l", "target")
-              end in
-              "f" ("lhd", "target")
+            (rec: "search_node_list" "arg" :=
+               let: "p" := Fst "arg" in
+               let: "target" := Snd "arg" in
+               match: "p" with
+                 NONE => #false
+               | SOME "l" =>
+                   let: "val" := Fst !"l" in
+                   let: "interval" :=
+                     match: "val" with
+                       InjL "ptr" => Fst !"ptr"
+                     | InjR "ptr" => Fst !"ptr"
+                     end in
+                   let: "low" := Fst "interval" in
+                   let: "high" := Snd "interval" in
+                   if: (BinOp LeOp "low" "target") && (BinOp LeOp "target" "high")
+                   then "search_bplus_tree" ("val", "target")
+                   else "search_node_list" (Snd !"l", "target")
+               end) ("lhd", "target")
         end%E.
 
   End bplus_tree_algos.
@@ -845,7 +843,7 @@ Section bplus_tree.
       - iPoseProof (tree_node_token_branch with "Hv") as (?) "->".
         iDestruct "Hv" as (ptr lhd ns) "(% & Hptr & Hlhd & Hns)".
         assert (x = #ptr) by (unfold token_branch_v in H; congruence); subst.
-        wp_rec; wp_load; wp_proj; wp_let; wp_pure; wp_let.
+        wp_rec; wp_load; wp_proj; wp_let; wp_pure; wp_pure.
         iEval (unfold tree) in "HPost".
         iClear "Hptr".
         iInduction ts as [|thd trest] "IH'" forall (ns lhd).
@@ -899,7 +897,7 @@ Section bplus_tree.
                   rewrite orb_false_r.
                   done.
 
-               ++ wp_load; wp_pure.
+               ++ wp_load; wp_pure; wp_pure.
                   assert (tree_spec_wf (node (low, high) trest)) as x_wf.
                   { inversion_clear tree_wf0
                       as [| ? ? ? ? ord_low_high intervals_in_interval trees_wf intervals_sorted ].
@@ -933,7 +931,7 @@ Section bplus_tree.
                   inversion leaf_wf; subst.
                   apply (target_above_not_in_list _ high' _); done.
 
-            -- wp_load; wp_pure.
+            -- wp_load; wp_pure; wp_pure.
                assert (tree_spec_wf (node (low, high) trest)) as x_wf.
                { inversion_clear tree_wf0
                       as [| ? ? ? ? ord_low_high intervals_in_interval trees_wf intervals_sorted ].
@@ -1011,7 +1009,7 @@ Section bplus_tree.
                   rewrite orb_false_r.
                   done.
 
-               ++ wp_load; wp_pure.
+               ++ wp_load; wp_pure; wp_pure.
                   assert (tree_spec_wf (node (low, high) trest)) as x_wf.
                   { inversion_clear tree_wf0
                       as [| ? ? ? ? ord_low_high intervals_in_interval trees_wf intervals_sorted ].
@@ -1047,7 +1045,7 @@ Section bplus_tree.
 
                   apply (target_above_not_in_node target); try done.
 
-            -- wp_load; wp_pure.
+            -- wp_load; wp_pure; wp_pure.
                assert (tree_spec_wf (node (low, high) trest)) as x_wf.
                { inversion_clear tree_wf0
                       as [| ? ? ? ? ord_low_high intervals_in_interval trees_wf intervals_sorted ].
