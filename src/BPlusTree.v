@@ -840,7 +840,7 @@ Section bplus_tree.
     Qed.
 
     Theorem search_bplus_tree_spec (t : Tree) (v : val) (target : nat) :
-      {{{ is_bplus_tree v t }}} search_bplus_tree (v, #target)%V {{{ r, RET r; ⌜ r = #(In_tree target (tree t)) ⌝ (* ∗ is_bplus_tree v t *) }}}
+      {{{ is_bplus_tree v t }}} search_bplus_tree (v, #target)%V {{{ r, RET r; ⌜ r = #(In_tree target (tree t)) ⌝ ∗ is_bplus_tree v t }}}
       with search_node_list_spec (ts : list tree_spec) (ts_wf : Forall nary_tree_wf' ts)
            ( intervals_sorted : (fix intervals_sorted (l1 : list (A * A)) : Prop :=
                                    match l1 with
@@ -886,11 +886,25 @@ Section bplus_tree.
           if: if: "low" ≤ "target" then "target" ≤ "high" else #false
           then search_bplus_tree ("val", "target") else "search_node_list" (Snd ! "l", "target")
         end)%V (lhd, #target)%V
-        {{{ r, RET r; ⌜ r = #((fix In_aux (l0 : list nary_tree) : bool :=
-                                 match l0 with
-                                 | [] => false
-                                 | t0 :: ts => In_tree target t0 || In_aux ts
-                                 end) ts) ⌝ }}}.
+        {{{ r, RET r;
+            ⌜ r = #((fix In_aux (l0 : list nary_tree) : bool :=
+                       match l0 with
+                       | [] => false
+                       | t0 :: ts => In_tree target t0 || In_aux ts
+                       end) ts) ⌝ ∗
+                    is_list lhd ns ∗
+                    (fix branch_node_list (ns0 : list val) (ts0 : list tree_spec) {struct ts0} : iProp :=
+                       match ns0 with
+                       | [] => match ts0 with
+                              | [] => True
+                              | _ :: _ => False
+                              end
+                       | n :: ns1 =>
+                           match ts0 with
+                           | [] => False
+                           | t :: ts1 => is_node n t ∗ branch_node_list ns1 ts1
+                           end
+                       end) ns ts }}}.
     Proof using bpos.
       { iIntros (Φ) "Hv HPost".
 
@@ -904,6 +918,9 @@ Section bplus_tree.
           iNext.
           iIntros (?) "[% Hlhd]".
           iApply "HPost".
+          iSplitR; [done|].
+          iExists ptr, lhd.
+          iFrame.
           done.
 
         - iPoseProof (tree_node_token_branch with "Hv") as (?) "->".
@@ -914,8 +931,11 @@ Section bplus_tree.
             as [| ? ? ? ? ord_low_high intervals_in_interval trees_wf intervals_sorted ].
           iApply ((search_node_list_spec _ trees_wf intervals_sorted) with "[Hlhd Hns]"). { iFrame. }
           iNext.
-          iIntros (?) "%".
+          iIntros (?) "(% & Hlhd & Hns)".
           iApply "HPost".
+          iSplitR; [done|].
+          iExists ptr, lhd, ns.
+          iFrame.
           done. }
 
       { iIntros (Φ) "[Hlhd Hns] HPost".
@@ -934,49 +954,54 @@ Section bplus_tree.
             wp_load; wp_load; wp_pures.
             destruct (bool_decide (Z.le (Z.of_nat low') (Z.of_nat target))) eqn:?; wp_pures.
             -- destruct (bool_decide (Z.le (Z.of_nat target) (Z.of_nat high'))) eqn:?; wp_pures.
-               ++ iClear "IH'".
-                  apply Forall_cons in ts_wf.
+               ++ apply Forall_cons in ts_wf.
                   destruct ts_wf as [leaf_wf ts_wf].
 
-                  iApply ((search_bplus_tree_spec {| tree := (leaf (low', high') l); tree_wf := leaf_wf |} (token_leaf_v #ptr') target) with "[Hptr' Hleaves Hns]").
+                  iApply ((search_bplus_tree_spec {| tree := (leaf (low', high') l); tree_wf := leaf_wf |} (token_leaf_v #ptr') target) with "[Hptr' Hleaves]").
                   { iExists ptr', leaves.
                     iFrame.
                     done. }
 
                   iNext.
-                  iIntros (?) "%".
+                  iIntros (?) "(% & Hptr')".
                   iApply "HPost".
-                  iPureIntro.
-                  cbn.
-                  apply bool_decide_eq_true_1 in Heqb0.
-                  apply bool_decide_eq_true_1 in Heqb1.
-                  assert (low' <= target) as low'_le_target by lia.
-                  assert (target <= high') as target_le_high' by lia.
-                  assert (ordeq_A low' target) as ordeq_low'_target.
-                  { destruct low'_le_target.
-                    - left.
-                    - right.
-                      lia. }
-                  assert (ordeq_A target high') as ordeq_target_high'.
-                  { destruct target_le_high'.
-                    - left.
-                    - right.
-                      lia. }
+                  iSplitR.
+                  { iPureIntro.
+                    cbn.
+                    apply bool_decide_eq_true_1 in Heqb0.
+                    apply bool_decide_eq_true_1 in Heqb1.
+                    assert (low' <= target) as low'_le_target by lia.
+                    assert (target <= high') as target_le_high' by lia.
+                    assert (ordeq_A low' target) as ordeq_low'_target.
+                    { destruct low'_le_target.
+                      - left.
+                      - right.
+                        lia. }
+                    assert (ordeq_A target high') as ordeq_target_high'.
+                    { destruct target_le_high'.
+                      - left.
+                      - right.
+                        lia. }
 
-                  assert ((fix In_aux (l1 : list nary_tree) : bool :=
-                             match l1 with
-                             | [] => false
-                             | t0 :: ts => In_tree target t0 || In_aux ts
-                             end) trest = false) as not_in_others.
-                  { apply (nary_tree_in_interval_not_in_others _ (leaf (low', high') l)).
-                    - constructor; done.
-                    - cbn in intervals_sorted.
-                      destruct intervals_sorted.
-                      done.
-                    - done. }
-                  rewrite not_in_others.
-                  rewrite orb_false_r.
-                  done.
+                    assert ((fix In_aux (l1 : list nary_tree) : bool :=
+                               match l1 with
+                               | [] => false
+                               | t0 :: ts => In_tree target t0 || In_aux ts
+                               end) trest = false) as not_in_others.
+                    { apply (nary_tree_in_interval_not_in_others _ (leaf (low', high') l)).
+                      - constructor; done.
+                      - cbn in intervals_sorted.
+                        destruct intervals_sorted.
+                        done.
+                      - done. }
+                    rewrite not_in_others.
+                    rewrite orb_false_r.
+                    done. }
+                  iSplitL "Hl0 Hnrest".
+                  { iExists l0, hd'.
+                    iFrame.
+                    done. }
+                  iFrame.
 
                ++ wp_load; wp_pure; wp_pure.
                   apply Forall_cons in ts_wf;
@@ -986,19 +1011,29 @@ Section bplus_tree.
 
                   iSpecialize ("IH'" $! ts_wf intervals_sorted).
                   iApply ("IH'" $! nrest hd' with "[Hnrest] [Hns]"); iFrame.
-                  iIntros (?) "%".
+                  iNext.
+                  iIntros (?) "(% & Hhd' & Hnrest)".
                   iApply "HPost".
-                  iPureIntro.
-                  enough (In_list target l = false) as not_in_l.
-                  { cbn.
-                    rewrite not_in_l.
-                    rewrite orb_false_l.
+                  iSplitR.
+                  { iPureIntro.
+                    enough (In_list target l = false) as not_in_l.
+                    { cbn.
+                      rewrite not_in_l.
+                      rewrite orb_false_l.
+                      done. }
+                    assert (high' < target).
+                    { apply bool_decide_eq_false_1 in Heqb1.
+                      lia. }
+                    inversion leaf_wf; subst.
+                    apply (target_above_not_in_list _ high' _); done. }
+                  iFrame.
+                  iSplitL "Hl0 Hhd'".
+                  { iExists l0, hd'.
+                    iFrame.
                     done. }
-                  assert (high' < target).
-                  { apply bool_decide_eq_false_1 in Heqb1.
-                    lia. }
-                  inversion leaf_wf; subst.
-                  apply (target_above_not_in_list _ high' _); done.
+                  iExists ptr', leaves.
+                  iFrame.
+                  done.
 
             -- wp_load; wp_pure; wp_pure.
                apply Forall_cons in ts_wf.
@@ -1008,20 +1043,32 @@ Section bplus_tree.
 
                iSpecialize ("IH'" $! ts_wf intervals_sorted).
                iApply ("IH'" $! nrest hd' with "[Hnrest] [Hns]"); iFrame.
-               iIntros (?) "%".
+               iNext.
+               iIntros (?) "(% & Hhd' & Hnrest)".
                iApply "HPost".
-               iPureIntro.
-               enough (In_list target l = false) as not_in_l.
-               { cbn.
-                 rewrite not_in_l.
-                 rewrite orb_false_l.
+               iSplitR.
+               { iPureIntro.
+                 enough (In_list target l = false) as not_in_l.
+                 { cbn.
+                   rewrite not_in_l.
+                   rewrite orb_false_l.
+                   done. }
+                 assert (target < low').
+                 { apply bool_decide_eq_false_1 in Heqb0.
+                   lia. }
+                 inversion leaf_wf; subst.
+                 apply (target_below_not_in_list _ low' _); done. }
+               iFrame.
+               iSplitL "Hl0 Hhd'".
+               { iExists l0, hd'.
+                 iFrame.
                  done. }
-               assert (target < low').
-               { apply bool_decide_eq_false_1 in Heqb0.
-                 lia. }
-               inversion leaf_wf; subst.
-               apply (target_below_not_in_list _ low' _); done.
+               iExists ptr', leaves.
+               iFrame.
+               done.
+
 Admitted.
+
           * destruct interval as [low' high'].
             iDestruct "Hns" as "[Hthd Hns]".
             iDestruct "Hthd" as (ptr' leaves) "(% & -> & Hptr' & Hleaves)".
