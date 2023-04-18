@@ -529,11 +529,11 @@ Section bplus_tree.
       | x :: xs => ∃ (l : loc) hd', ⌜hd = SOMEV #l⌝ ∗ l ↦ (x, hd') ∗ is_list hd' xs
     end%I.
 
-    Definition leaf_node v (t : tree_spec) (interval : tval * tval) (vals : list tval) :=
+    Definition leaf_node v (interval : tval * tval) (vals : list tval) :=
       let (low, high) := interval in
-      (∃ (ptr : loc) (lhd : val), ⌜ size t < b ⌝ ∗ ⌜ v = token_leaf_v #ptr ⌝ ∗ ptr ↦ ((#low, #high), lhd) ∗ is_list lhd (map (fun (x : tval) => #x) vals))%I.
+      (∃ (ptr : loc) (lhd : val), ⌜ v = token_leaf_v #ptr ⌝ ∗ ptr ↦ ((#low, #high), lhd) ∗ is_list lhd (map (fun (x : tval) => #x) vals))%I.
 
-    Definition branch_node v (t : tree_spec) (interval : tval * tval) ts (is_node : forall (_ : val) (t : tree_spec), iProp) :=
+    Definition branch_node v (interval : tval * tval) ts (is_node : forall (_ : val) (t : tree_spec), iProp) :=
       let (low, high) := interval in
       (∃ (ptr : loc) l (ns : list val),
           ⌜ v = token_branch_v #ptr ⌝ ∗
@@ -549,7 +549,7 @@ Section bplus_tree.
 
     Fixpoint is_node (v : val) (t : tree_spec) {struct t} : iProp :=
       match t with
-      | leaf interval l => leaf_node v t interval l
+      | leaf interval l => leaf_node v interval l
       | node interval ts =>
          let (low, high) := interval in
          (∃ (ptr : loc) l (ns : list val),
@@ -567,8 +567,8 @@ Section bplus_tree.
 
     Definition is_bplus_tree (v : val) (t : tree_spec) (t_wf : tree_spec_wf t) : iProp :=
       match t with
-      | leaf interval l => leaf_node v t interval l
-      | node interval ts => branch_node v t interval ts is_node
+      | leaf interval l => leaf_node v interval l
+      | node interval ts => branch_node v interval ts is_node
       end%I.
 
   End bplus_tree_model.
@@ -647,7 +647,6 @@ Section bplus_tree.
       iApply "HPost".
       iExists ptr, NONEV.
       iSplitR; [done|].
-      iSplitR; [done|].
       iSplitL; [done|].
       done.
     Qed.
@@ -656,7 +655,7 @@ Section bplus_tree.
       is_bplus_tree v (leaf (low, high) l) wf ⊢ ∃ x, ⌜ v = token_leaf_v x ⌝.
     Proof.
       iIntros "Hv".
-      iDestruct "Hv" as (? ?) "[% [% Hv]]".
+      iDestruct "Hv" as (? ?) "[% Hv]".
       iExists #ptr.
       done.
     Qed.
@@ -741,8 +740,8 @@ Section bplus_tree.
 
       iInduction t as [(low & high)|(low & high) ts] "IH" using nary_tree_ind' forall (v).
       - iPoseProof (tree_leaf_token_leaf with "Hv") as (?) "->".
-        iDestruct "Hv" as (? ?) "(% & % & Hptr & Hlhd)".
-        assert (x = #ptr) by (unfold token_leaf_v in H0; congruence); subst.
+        iDestruct "Hv" as (? ?) "(% & Hptr & Hlhd)".
+        assert (x = #ptr) by (unfold token_leaf_v in H; congruence); subst.
         wp_rec; wp_load; wp_pures.
         iApply (search_list_spec with "Hlhd").
         iNext.
@@ -831,7 +830,7 @@ Section bplus_tree.
             destruct thd.
             * destruct interval as [low' high'].
               iDestruct "Hns" as "[Hthd Hns]".
-              iDestruct "Hthd" as (ptr' leaves) "(% & -> & Hptr' & Hleaves)".
+              iDestruct "Hthd" as (ptr' leaves) "(-> & Hptr' & Hleaves)".
               wp_load; wp_load; wp_pures.
               destruct (bool_decide (Z.le (Z.of_nat low') (Z.of_nat target))) eqn:?; wp_pures.
               -- destruct (bool_decide (Z.le (Z.of_nat target) (Z.of_nat high'))) eqn:?; wp_pures.
