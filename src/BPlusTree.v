@@ -98,14 +98,6 @@ Section nary_tree.
            end) intervals ->
         nary_tree_wf (node (low, high) trees).
 
-  Lemma nary_tree_wf_branches interval branches (wf : nary_tree_wf (node interval branches)) :
-    Forall nary_tree_wf branches.
-  Proof.
-    destruct interval as [low high].
-    inversion wf; subst.
-    done.
-  Qed.
-
   Lemma destruct_list_back : forall (l : list A), {x:A & {init:list A | l = init ++ [x] }}+{l = [] }.
   Proof.
     induction l.
@@ -138,50 +130,6 @@ Section nary_tree.
     | [] => false
     | x :: xs => orb (eqb_A x v) (In_list v xs)
     end.
-
-  Lemma In_list_split : ∀ (x : A) (l : list A), In_list x l = true → ∃ l1 l2 : list A, l = l1 ++ x :: l2.
-  Proof.
-    intros x l in_x_l.
-    induction l; [done|].
-    cbn in in_x_l.
-    apply orb_prop in in_x_l.
-    destruct in_x_l.
-    - exists [], l.
-      unfold eqb_A in H.
-      apply beq_nat_true in H; subst.
-      done.
-    - destruct (IHl H) as (l1 & l2 & ->).
-      exists (a :: l1), l2.
-      done.
-  Qed.
-
-  Lemma In_list_sorted_interval l target : list_sorted l -> In_list target l = true -> ordeq_A (hd target l) target.
-  Proof.
-    clear b.
-    intros sorted_l in_target_l.
-    destruct l; [done|].
-    cbn.
-    apply (orb_prop) in in_target_l.
-    destruct in_target_l.
-    - apply beq_nat_true in H.
-      unfold ordeq_A.
-      lia.
-    - apply In_list_split in H.
-      destruct H as (l' & ? & ->).
-      induction l'.
-      + destruct sorted_l as (? & _).
-        unfold ord_A, ordeq_A in *.
-        lia.
-      + apply IHl'.
-        destruct sorted_l as (ord_a_a0 & sorted_l).
-        cbn in sorted_l.
-        cbn.
-        destruct (l' ++ target :: x); [done|].
-        destruct sorted_l as (ord_a0_a1 & ?).
-        split; [|done].
-        unfold ord_A in *.
-        lia.
-  Qed.
 
   Lemma target_above_not_in_list target high vals:
     high < target ->
@@ -568,27 +516,6 @@ Section bplus_tree.
   Hypothesis beven : Zeven b.
   Hypothesis bpos : 0 < b.
 
-  Lemma b2pos : 0 < b / 2.
-  Proof using beven bpos.
-    induction b using nat_strong_ind.
-    destruct n; [done|].
-    destruct n; [done|].
-    destruct n; [cbn; lia|].
-    assert (S n < S (S (S n))) by lia.
-    assert (Zeven (S n)).
-    { apply Zodd_pred in beven.
-      apply Zeven_pred in beven.
-      assert (Z.pred (Z.pred (S (S (S n)))) = S n) by lia.
-      rewrite <- H1.
-      done. }
-    assert (0 < S n) by lia.
-    specialize (H (S n) H0 H1 H2).
-    assert (2 ≠ 0) by lia.
-    assert (S n ≤ S (S (S n))) by lia.
-    specialize (Nat.div_le_mono (S n) (S (S (S n))) 2 H3 H4) as ?.
-    lia.
-  Qed.
-
   Definition tree_spec := nary_tree.
   Definition tree_spec_wf := nary_tree_wf b.
 
@@ -619,30 +546,6 @@ Section bplus_tree.
               | _, _ => False
               end)
              ns ts))%I.
-
-    Lemma S_cong m n :
-      m = n -> S m = S n.
-    Proof. clear bpos. lia. Qed.
-
-    Lemma branch_node_lengths_eq is_node ns ts :
-      (((fix branch_node_list (ns : list val) (ts : list tree_spec) {struct ts} : iProp :=
-          match ns, ts with
-          | [], [] => True
-          | n :: ns, t :: ts => is_node n t ∗ branch_node_list ns ts
-          | _, _ => False
-          end)
-         ns ts) ⊢ ⌜ length ns = length ts ⌝)%I.
-    Proof.
-      iIntros "Hnodes".
-      iInduction ns as [] "IH" forall (ts).
-      - destruct ts; done.
-      - destruct ts; [done|].
-        iDestruct "Hnodes" as "[_ Hnodes]".
-        iSpecialize ("IH" $! ts with "Hnodes").
-        cbn.
-        iDestruct "IH" as "->".
-        done.
-    Qed.
 
     Fixpoint is_node (v : val) (t : tree_spec) {struct t} : iProp :=
       match t with
