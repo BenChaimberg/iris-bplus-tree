@@ -565,16 +565,10 @@ Section bplus_tree.
                 ns ts))
            end%I.
 
-    Record Tree : Set :=
-      mkTree {
-          tree : tree_spec;
-          tree_wf : tree_spec_wf tree
-        }.
-
-    Definition is_bplus_tree (v : val) (t : Tree) : iProp :=
-      match (tree t) with
-      | leaf interval l => leaf_node v (tree t) interval l
-      | node interval ts => branch_node v (tree t) interval ts is_node
+    Definition is_bplus_tree (v : val) (t : tree_spec) (t_wf : tree_spec_wf t) : iProp :=
+      match t with
+      | leaf interval l => leaf_node v t interval l
+      | node interval ts => branch_node v t interval ts is_node
       end%I.
 
   End bplus_tree_model.
@@ -646,7 +640,7 @@ Section bplus_tree.
     Qed.
 
     Theorem new_bplus_tree_spec:
-      {{{ True }}} new_bplus_tree #() {{{ v, RET v; is_bplus_tree v {| tree := empty_tree; tree_wf := empty_tree_wf |} }}}.
+      {{{ True }}} new_bplus_tree #() {{{ v, RET v; is_bplus_tree v empty_tree empty_tree_wf }}}.
     Proof using bpos.
       iIntros (Φ) "_ HPost".
       wp_lam; wp_alloc ptr; wp_pures.
@@ -659,7 +653,7 @@ Section bplus_tree.
     Qed.
 
     Lemma tree_leaf_token_leaf v low high l (wf : (tree_spec_wf (leaf (low, high) l))):
-      is_bplus_tree v {| tree := leaf (low, high) l; tree_wf := wf |} ⊢ ∃ x, ⌜ v = token_leaf_v x ⌝.
+      is_bplus_tree v (leaf (low, high) l) wf ⊢ ∃ x, ⌜ v = token_leaf_v x ⌝.
     Proof.
       iIntros "Hv".
       iDestruct "Hv" as (? ?) "[% [% Hv]]".
@@ -668,7 +662,7 @@ Section bplus_tree.
     Qed.
 
     Lemma tree_node_token_branch v low high l (wf : tree_spec_wf (node (low, high) l)):
-      is_bplus_tree v {| tree := node (low, high) l; tree_wf := wf |} ⊢ ∃ x, ⌜ v = token_branch_v x ⌝.
+      is_bplus_tree v (node (low, high) l) wf ⊢ ∃ x, ⌜ v = token_branch_v x ⌝.
     Proof.
       iIntros "Hv".
       iDestruct "Hv" as (? ? ? ?) "(_ & ? & _)".
@@ -740,13 +734,12 @@ Section bplus_tree.
             done.
     Qed.
 
-    Theorem search_bplus_tree_spec (t : Tree) (v : val) (target : nat) :
-      {{{ is_bplus_tree v t }}} search_bplus_tree (v, #target)%V {{{ r, RET r; ⌜ r = #(In_tree target (tree t)) ⌝ ∗ is_bplus_tree v t }}}.
+    Theorem search_bplus_tree_spec (t : tree_spec) (t_wf : tree_spec_wf t) (v : val) (target : nat) :
+      {{{ is_bplus_tree v t t_wf }}} search_bplus_tree (v, #target)%V {{{ r, RET r; ⌜ r = #(In_tree target t) ⌝ ∗ is_bplus_tree v t t_wf }}}.
     Proof using bpos.
       iIntros (Φ) "Hv HPost".
 
-      destruct t as (tree & tree_wf).
-      iInduction tree as [(low & high)|(low & high) ts] "IH" using nary_tree_ind' forall (v).
+      iInduction t as [(low & high)|(low & high) ts] "IH" using nary_tree_ind' forall (v).
       - iPoseProof (tree_leaf_token_leaf with "Hv") as (?) "->".
         iDestruct "Hv" as (? ?) "(% & % & Hptr & Hlhd)".
         assert (x = #ptr) by (unfold token_leaf_v in H0; congruence); subst.
@@ -818,7 +811,7 @@ Section bplus_tree.
                {{ v, Φ v }})
           )%I as "IH'".
         { iIntros "[Hlhd Hns] HPost".
-          inversion_clear tree_wf
+          inversion_clear t_wf
             as [| ? ? ? ? _ _ _ trees_wf intervals_sorted ];
             subst intervals.
           iInduction ts as [|thd trest] "IH'" forall (ns lhd).
