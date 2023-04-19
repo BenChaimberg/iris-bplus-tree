@@ -35,6 +35,10 @@ Section nary_tree.
   | leaf (interval : A * A) (l : list A) : nary_tree
   | node (interval : A * A) (l : list nary_tree) : nary_tree.
 
+  Inductive bplus_tree : Set :=
+  | root_leaf (interval : A * A) (l : list A) : bplus_tree
+  | root_node (interval : A * A) (l : list nary_tree) : bplus_tree.
+
   Fixpoint nary_tree_ind'
     (P : nary_tree -> Prop)
     (Pleaf : forall interval vals, P (leaf interval vals))
@@ -66,8 +70,7 @@ Section nary_tree.
         ordeq_A low high ->
           hd low vals = low ->
           List.last vals high = high ->
-          (** hidden so we don't need to deal with root node shenanigans *)
-          (* b / 2 <= length vals <= b -> *)
+          b / 2 <= length vals <= b ->
           list_sorted vals ->
           nary_tree_wf (leaf (low, high) vals)
     | node_wf low high trees :
@@ -97,6 +100,79 @@ Section nary_tree.
                end /\ intervals_sorted rest
            end) intervals ->
         nary_tree_wf (node (low, high) trees).
+
+  Inductive nary_tree_wf_no_len : nary_tree -> Prop :=
+    | leaf_wf_nl low high vals :
+        ordeq_A low high ->
+          hd low vals = low ->
+          List.last vals high = high ->
+          list_sorted vals ->
+          nary_tree_wf_no_len (leaf (low, high) vals)
+    | node_wf_nl low high trees :
+        let intervals :=
+          map (fun t =>
+                 match t with
+                 | leaf (low', high') _
+                 | node (low', high') _ => (low', high')
+                 end)
+            trees
+        in
+        ordeq_A low high ->
+        Forall (fun (interval : A * A) =>
+                  let (low', high') := interval in
+                  ord_A low low' /\ ord_A high' high)
+          intervals ->
+        Forall nary_tree_wf trees ->
+        (fix intervals_sorted (l : list (A * A)) : Prop :=
+           match l with
+           | [] => True
+           | (_, high') :: rest =>
+               match rest with
+               | [] => True
+               | (low', high'') :: rest' =>
+                   ord_A high' low'
+               end /\ intervals_sorted rest
+           end) intervals ->
+        nary_tree_wf_no_len (node (low, high) trees).
+
+  Lemma nary_tree_wf_remove_len t (t_wf : nary_tree_wf t) : (nary_tree_wf_no_len t).
+  Proof. destruct t; inversion t_wf; subst; constructor; done. Qed.
+
+  Inductive bplus_tree_wf : bplus_tree -> Prop :=
+    | root_leaf_wf low high vals :
+        ordeq_A low high ->
+          hd low vals = low ->
+          List.last vals high = high ->
+          0 <= length vals <= b - 1 ->
+          list_sorted vals ->
+          bplus_tree_wf (root_leaf (low, high) vals)
+    | root_node_wf low high trees :
+        let intervals :=
+          map (fun t =>
+                 match t with
+                 | leaf (low', high') _
+                 | node (low', high') _ => (low', high')
+                 end)
+            trees
+        in
+        2 <= length trees <= b ->
+        ordeq_A low high ->
+        Forall (fun (interval : A * A) =>
+                  let (low', high') := interval in
+                  ord_A low low' /\ ord_A high' high)
+          intervals ->
+        Forall nary_tree_wf trees ->
+        (fix intervals_sorted (l : list (A * A)) : Prop :=
+           match l with
+           | [] => True
+           | (_, high') :: rest =>
+               match rest with
+               | [] => True
+               | (low', high'') :: rest' =>
+                   ord_A high' low'
+               end /\ intervals_sorted rest
+           end) intervals ->
+        bplus_tree_wf (root_node (low, high) trees).
 
   Lemma destruct_list_back : forall (l : list A), {x:A & {init:list A | l = init ++ [x] }}+{l = [] }.
   Proof.
@@ -216,96 +292,54 @@ Section nary_tree.
     split; [lia|done].
   Qed.
 
-  Fixpoint In_tree (v : A) (t : nary_tree) {struct t} : bool :=
+  Fixpoint In_nary_tree (v : A) (t : nary_tree) {struct t} : bool :=
     match t with
     | leaf _ l => In_list v l
     | node _ l =>
         (fix In_aux (l : list nary_tree) :=
            match l with
            | [] => false
-           | t :: ts => orb (In_tree v t) (In_aux ts)
+           | t :: ts => orb (In_nary_tree v t) (In_aux ts)
            end) l
     end.
 
-  Lemma leaf_wf_remove_length t :
-    nary_tree_wf t ->
-    forall low high vals,
-      t = leaf (low, high) vals ->
-      ordeq_A low high /\
-        hd low vals = low /\
-        List.last vals high = high /\
-        list_sorted vals.
-  Proof.
-    destruct t as [[low' high'] vals'|].
-    - intros t_wf ? ? ? Heqleaf.
-      inversion Heqleaf; subst.
-      inversion t_wf; done.
-    - discriminate.
-  Qed.
-
-  Lemma node_wf_remove_length t :
-    nary_tree_wf t ->
-    forall low high trees,
-      t = node (low, high) trees ->
-        let intervals :=
-          map (fun t =>
-                 match t with
-                 | leaf (low', high') _
-                 | node (low', high') _ => (low', high')
-                 end)
-            trees
-        in
-        ordeq_A low high /\
-        Forall (fun (interval : A * A) =>
-                  let (low', high') := interval in
-                  ord_A low low' /\ ord_A high' high)
-          intervals /\
-        Forall nary_tree_wf trees /\
-        (fix intervals_sorted (l : list (A * A)) : Prop :=
+  Definition In_bplus_tree (v : A) (t : bplus_tree) : bool :=
+    match t with
+    | root_leaf _ l => In_list v l
+    | root_node _ l =>
+        (fix In_aux (l : list nary_tree) :=
            match l with
-           | [] => True
-           | (_, high') :: rest =>
-               match rest with
-               | [] => True
-               | (low', high'') :: rest' =>
-                   ord_A high' low'
-               end /\ intervals_sorted rest
-           end) intervals.
-  Proof.
-    destruct t as [|[low' high'] trees'].
-    - discriminate.
-    - intros t_wf ? ? ? Heqnode.
-      inversion Heqnode; subst.
-      inversion t_wf; done.
-  Qed.
+           | [] => false
+           | t :: ts => orb (In_nary_tree v t) (In_aux ts)
+           end) l
+    end.
 
   Lemma target_above_below_not_in_node target t:
     nary_tree_wf t ->
     (ord_A target (fst (nary_tree_interval t)) \/ ord_A (snd (nary_tree_interval t)) target) ->
-    In_tree target t = false.
+    In_nary_tree target t = false.
   Proof.
     intros t_wf ord_target_low_high.
     unfold ord_A in ord_target_low_high.
-    specialize (leaf_wf_remove_length _ t_wf) as leaf_wf.
-    specialize (node_wf_remove_length _ t_wf) as node_wf.
+    specialize (nary_tree_wf_remove_len _ t_wf) as t_wf'.
     clear t_wf.
 
     induction t as [? | interval trees IH] using nary_tree_ind';
       destruct interval as [low high];
       cbn in ord_target_low_high.
-    - destruct (leaf_wf _ _ _ eq_refl) as (? & ? & ? & ?).
+    - inversion t_wf'.
       destruct ord_target_low_high as [ord_target_low | ord_high_target];
         [ apply (target_below_not_in_list _ low) | apply (target_above_not_in_list _ high)];
         done.
     - cbn.
       induction trees as [|t trees]; [done|].
-      replace (In_tree target t) with false.
+      replace (In_nary_tree target t) with false.
       2:{ apply Forall_cons in IH.
-          destruct (node_wf _ _ _ eq_refl) as (? & intervals_in_interval & trees_wf & ?).
+          inversion_clear t_wf' as [|? ? ? ? _ intervals_in_interval trees_wf _].
           apply Forall_cons in trees_wf.
           destruct trees_wf.
           symmetry.
-          apply (proj1 IH); [|apply leaf_wf_remove_length|apply node_wf_remove_length]; try done.
+          apply (proj1 IH); [|apply nary_tree_wf_remove_len; done].
           apply Forall_cons in intervals_in_interval.
           destruct intervals_in_interval.
           destruct t;
@@ -319,10 +353,7 @@ Section nary_tree.
       + apply Forall_cons in IH.
         destruct IH.
         done.
-      + discriminate.
-      + intros ? ? ? Heqnode.
-        inversion Heqnode; subst.
-        destruct (node_wf _ _ _ eq_refl) as (? & intervals_in_interval & trees_wf & intervals_sorted).
+      + inversion_clear t_wf' as [|? ? ? ? ? intervals_in_interval trees_wf intervals_sorted].
         apply Forall_cons in trees_wf.
         destruct trees_wf.
         apply Forall_cons in intervals_in_interval.
@@ -330,6 +361,7 @@ Section nary_tree.
         destruct t;
           destruct interval;
           destruct intervals_sorted;
+          constructor;
           done.
   Qed.
 
@@ -356,7 +388,7 @@ Section nary_tree.
     (fix In_aux (l : list nary_tree) :=
            match l with
            | [] => false
-           | t :: ts => orb (In_tree target t) (In_aux ts)
+           | t :: ts => orb (In_nary_tree target t) (In_aux ts)
            end) branches = false.
   Proof.
     intros intervals wf_branches intervals_sorted (? & ?).
@@ -373,7 +405,7 @@ Section nary_tree.
       assert ((fix In_aux (l : list nary_tree) : bool :=
                  match l with
                  | [] => false
-                 | t :: ts => In_tree target t || In_aux ts
+                 | t :: ts => In_nary_tree target t || In_aux ts
                  end) branches = false).
       { apply IHbranches; clear IHbranches.
         - done.
@@ -406,7 +438,7 @@ Section nary_tree.
       assert ((fix In_aux (l : list nary_tree) : bool :=
                  match l with
                  | [] => false
-                 | t :: ts => In_tree target t || In_aux ts
+                 | t :: ts => In_nary_tree target t || In_aux ts
                  end) branches = false).
       { apply IHbranches; clear IHbranches.
         - done.
@@ -433,12 +465,12 @@ Section nary_tree.
       apply (target_above_below_not_in_node); [|left]; done.
 
     - destruct interval as (low & high), interval0 as (low' & high').
-      inversion_clear wf_branch' as [? ? ? ordeq_low'_high' hd_vals_low' last_vals_high' sorted_vals |].
+      inversion_clear wf_branch' as [? ? ? ordeq_low'_high' hd_vals_low' last_vals_high' _ sorted_vals |].
 
       assert ((fix In_aux (l : list nary_tree) : bool :=
                  match l with
                  | [] => false
-                 | t :: ts => In_tree target t || In_aux ts
+                 | t :: ts => In_nary_tree target t || In_aux ts
                  end) branches = false)
         as not_in_branches.
       { apply IHbranches; clear IHbranches.
@@ -470,7 +502,7 @@ Section nary_tree.
       assert ((fix In_aux (l : list nary_tree) : bool :=
                  match l with
                  | [] => false
-                 | t :: ts => In_tree target t || In_aux ts
+                 | t :: ts => In_nary_tree target t || In_aux ts
                  end) branches = false).
       { apply IHbranches; clear IHbranches.
         - done.
@@ -515,9 +547,20 @@ Section bplus_tree.
   Variable b : nat.
   Hypothesis beven : Zeven b.
   Hypothesis bpos : 0 < b.
+  Lemma bge2 : 2 <= b.
+  Proof using beven bpos.
+    induction b using nat_strong_ind.
+    destruct n; [lia|].
+    destruct n.
+    { unfold Zeven in beven.
+      unfold Z.of_nat in beven.
+      unfold Pos.of_succ_nat in beven.
+      done. }
+    lia.
+  Qed.
 
-  Definition tree_spec := nary_tree.
-  Definition tree_spec_wf := nary_tree_wf b.
+  Definition tree_spec := bplus_tree.
+  Definition tree_spec_wf := bplus_tree_wf b.
 
   Section bplus_tree_model.
     Context `{!heapGS Σ}.
@@ -533,21 +576,7 @@ Section bplus_tree.
       let (low, high) := interval in
       (∃ (ptr : loc) (lhd : val), ⌜ v = token_leaf_v #ptr ⌝ ∗ ptr ↦ ((#low, #high), lhd) ∗ is_list lhd (map (fun (x : tval) => #x) vals))%I.
 
-    Definition branch_node v (interval : tval * tval) ts (is_node : forall (_ : val) (t : tree_spec), iProp) :=
-      let (low, high) := interval in
-      (∃ (ptr : loc) l (ns : list val),
-          ⌜ v = token_branch_v #ptr ⌝ ∗
-          ptr ↦ (((#low), (#high)), l) ∗
-          is_list l ns ∗
-          ((fix branch_node_list (ns : list val) (ts : list tree_spec) {struct ts} : iProp :=
-              match ns, ts with
-              | [], [] => True
-              | n :: ns, t :: ts => is_node n t ∗ branch_node_list ns ts
-              | _, _ => False
-              end)
-             ns ts))%I.
-
-    Fixpoint is_node (v : val) (t : tree_spec) {struct t} : iProp :=
+    Fixpoint is_node (v : val) (t : nary_tree) {struct t} : iProp :=
       match t with
       | leaf interval l => leaf_node v interval l
       | node interval ts =>
@@ -556,7 +585,7 @@ Section bplus_tree.
              ⌜ v = token_branch_v #ptr ⌝ ∗
              ptr ↦ (((#low), (#high)), l) ∗
              is_list l ns ∗
-             ((fix branch_node_list (ns : list val) (ts : list tree_spec) {struct ts} : iProp :=
+             ((fix branch_node_list (ns : list val) (ts : list nary_tree) {struct ts} : iProp :=
                  match ns, ts with
                  | [], [] => True
                  | n :: ns, t :: ts => is_node n t ∗ branch_node_list ns ts
@@ -567,8 +596,8 @@ Section bplus_tree.
 
     Definition is_bplus_tree (v : val) (t : tree_spec) (t_wf : tree_spec_wf t) : iProp :=
       match t with
-      | leaf interval l => leaf_node v interval l
-      | node interval ts => branch_node v interval ts is_node
+      | root_leaf interval l => leaf_node v interval l
+      | root_node interval ts => is_node v (node interval ts)
       end%I.
 
   End bplus_tree_model.
@@ -629,14 +658,17 @@ Section bplus_tree.
     Notation iProp := (iProp Σ).
 
 
-    Definition empty_tree := leaf (ninf, pinf) [].
+    Definition empty_tree := root_leaf (ninf, pinf) [].
     Lemma empty_tree_wf : tree_spec_wf empty_tree.
-    Proof.
-      clear bpos beven.
+    Proof using beven bpos.
       constructor; try done.
-      specialize (pinf_max ninf) as ?.
-      unfold ordeq_A, tord in *.
-      lia.
+      - specialize (pinf_max ninf) as ?.
+        unfold ordeq_A, tord in *.
+        lia.
+      - split; try done.
+        specialize (bge2).
+        cbn.
+        lia.
     Qed.
 
     Theorem new_bplus_tree_spec:
@@ -651,8 +683,8 @@ Section bplus_tree.
       done.
     Qed.
 
-    Lemma tree_leaf_token_leaf v low high l (wf : (tree_spec_wf (leaf (low, high) l))):
-      is_bplus_tree v (leaf (low, high) l) wf ⊢ ∃ x, ⌜ v = token_leaf_v x ⌝.
+    Lemma tree_root_leaf_token_leaf v low high l (wf : (tree_spec_wf (root_leaf (low, high) l))):
+      is_bplus_tree v (root_leaf (low, high) l) wf ⊢ ∃ x, ⌜ v = token_leaf_v x ⌝.
     Proof.
       iIntros "Hv".
       iDestruct "Hv" as (? ?) "[% Hv]".
@@ -660,8 +692,26 @@ Section bplus_tree.
       done.
     Qed.
 
-    Lemma tree_node_token_branch v low high l (wf : tree_spec_wf (node (low, high) l)):
-      is_bplus_tree v (node (low, high) l) wf ⊢ ∃ x, ⌜ v = token_branch_v x ⌝.
+    Lemma tree_leaf_token_leaf v low high l :
+      is_node v (leaf (low, high) l) ⊢ ∃ x, ⌜ v = token_leaf_v x ⌝.
+    Proof.
+      iIntros "Hv".
+      iDestruct "Hv" as (? ?) "[% Hv]".
+      iExists #ptr.
+      done.
+    Qed.
+
+    Lemma tree_root_node_token_branch v low high l (wf : tree_spec_wf (root_node (low, high) l)):
+      is_bplus_tree v (root_node (low, high) l) wf ⊢ ∃ x, ⌜ v = token_branch_v x ⌝.
+    Proof.
+      iIntros "Hv".
+      iDestruct "Hv" as (? ? ? ?) "(_ & ? & _)".
+      iExists #ptr.
+      done.
+    Qed.
+
+    Lemma tree_node_token_branch v low high l :
+      is_node v (node (low, high) l) ⊢ ∃ x, ⌜ v = token_branch_v x ⌝.
     Proof.
       iIntros "Hv".
       iDestruct "Hv" as (? ? ? ?) "(_ & ? & _)".
@@ -733,8 +783,8 @@ Section bplus_tree.
             done.
     Qed.
 
-    Theorem search_bplus_tree_spec (t : tree_spec) (t_wf : tree_spec_wf t) (v : val) (target : nat) :
-      {{{ is_bplus_tree v t t_wf }}} search_bplus_tree (v, #target)%V {{{ r, RET r; ⌜ r = #(In_tree target t) ⌝ ∗ is_bplus_tree v t t_wf }}}.
+    Lemma search_nary_tree_spec (t : nary_tree) (t_wf : nary_tree_wf_no_len b t) (v : val) (target : nat) :
+      {{{ is_node v t }}} search_bplus_tree (v, #target)%V {{{ r, RET r; ⌜ r = #(In_nary_tree target t) ⌝ ∗ is_node v t }}}.
     Proof using bpos.
       iIntros (Φ) "Hv HPost".
 
@@ -760,7 +810,7 @@ Section bplus_tree.
 
         iAssert (
             (is_list lhd ns ∗
-               (fix branch_node_list (ns0 : list val) (ts0 : list tree_spec) {struct ts0} : iProp :=
+               (fix branch_node_list (ns0 : list val) (ts0 : list nary_tree) {struct ts0} : iProp :=
                   match ns0 with
                   | [] => match ts0 with
                          | [] => True
@@ -777,9 +827,9 @@ Section bplus_tree.
                      #((fix In_aux (l0 : list nary_tree) : bool :=
                           match l0 with
                           | [] => false
-                          | t0 :: ts0 => In_tree target t0 || In_aux ts0
+                          | t0 :: ts0 => In_nary_tree target t0 || In_aux ts0
                           end) ts)⌝ ∗ is_list lhd ns ∗
-                       (fix branch_node_list (ns0 : list val) (ts0 : list tree_spec) {struct ts0} : iProp :=
+                       (fix branch_node_list (ns0 : list val) (ts0 : list nary_tree) {struct ts0} : iProp :=
                           match ns0 with
                           | [] => match ts0 with
                                  | [] => True
@@ -811,7 +861,7 @@ Section bplus_tree.
           )%I as "IH'".
         { iIntros "[Hlhd Hns] HPost".
           inversion_clear t_wf
-            as [| ? ? ? ? _ _ _ trees_wf intervals_sorted ];
+            as [| ? ? ? ? _ _ trees_wf intervals_sorted ];
             subst intervals.
           iInduction ts as [|thd trest] "IH'" forall (ns lhd).
           + destruct ns as [|nhd nrest]; [|done].
@@ -834,7 +884,7 @@ Section bplus_tree.
               wp_load; wp_load; wp_pures.
               destruct (bool_decide (Z.le (Z.of_nat low') (Z.of_nat target))) eqn:?; wp_pures.
               -- destruct (bool_decide (Z.le (Z.of_nat target) (Z.of_nat high'))) eqn:?; wp_pures.
-                 ++ iApply ("IHthd" $! t_wf with "[Hptr' Hleaves]").
+                 ++ iApply ("IHthd" $! (nary_tree_wf_remove_len _ _ t_wf) with "[Hptr' Hleaves]").
                     { iExists ptr', leaves.
                       iFrame.
                       done. }
@@ -862,7 +912,7 @@ Section bplus_tree.
                       assert ((fix In_aux (l1 : list nary_tree) : bool :=
                                  match l1 with
                                  | [] => false
-                                 | t0 :: ts => In_tree target t0 || In_aux ts
+                                 | t0 :: ts => In_nary_tree target t0 || In_aux ts
                                  end) trest = false) as not_in_others.
                       { apply (nary_tree_in_interval_not_in_others b _ (leaf (low', high') l)).
                         - constructor; done.
@@ -945,7 +995,7 @@ Section bplus_tree.
               wp_load; wp_load; wp_pures.
               destruct (bool_decide (Z.le (Z.of_nat low') (Z.of_nat target))) eqn:?; wp_pures.
               -- destruct (bool_decide (Z.le (Z.of_nat target) (Z.of_nat high'))) eqn:?; wp_pures.
-                 ++ iApply ("IHthd" $! t_wf with "[Hptr' Hleaves]").
+                 ++ iApply ("IHthd" $! (nary_tree_wf_remove_len _ _ t_wf) with "[Hptr' Hleaves]").
                     { iExists ptr', leaves, ns.
                       iFrame.
                       done. }
@@ -974,7 +1024,7 @@ Section bplus_tree.
                       assert ((fix In_aux (l1 : list nary_tree) : bool :=
                                  match l1 with
                                  | [] => false
-                                 | t0 :: ts => In_tree target t0 || In_aux ts
+                                 | t0 :: ts => In_nary_tree target t0 || In_aux ts
                                  end) trest = false) as not_in_others.
                       { apply (nary_tree_in_interval_not_in_others b _ (node (low', high') l)).
                         - constructor; done.
@@ -1001,7 +1051,7 @@ Section bplus_tree.
                     iApply "HPost".
                     iSplitR.
                     { iPureIntro.
-                      enough (In_tree target (node (low', high') l) = false) as not_in_l.
+                      enough (In_nary_tree target (node (low', high') l) = false) as not_in_l.
                       { cbn; cbn in not_in_l.
                         rewrite not_in_l.
                         rewrite orb_false_l.
@@ -1032,7 +1082,7 @@ Section bplus_tree.
                  iApply "HPost".
                  iSplitR.
                  { iPureIntro.
-                   enough (In_tree target (node (low', high') l) = false) as not_in_l.
+                   enough (In_nary_tree target (node (low', high') l) = false) as not_in_l.
                    { cbn; cbn in not_in_l.
                      rewrite not_in_l.
                      rewrite orb_false_l.
@@ -1061,6 +1111,34 @@ Section bplus_tree.
         iFrame.
         done.
     Qed.               
+
+    Theorem search_bplus_tree_spec (t : tree_spec) (t_wf : tree_spec_wf t) (v : val) (target : nat) :
+      {{{ is_bplus_tree v t t_wf }}} search_bplus_tree (v, #target)%V {{{ r, RET r; ⌜ r = #(In_bplus_tree target t) ⌝ ∗ is_bplus_tree v t t_wf }}}.
+    Proof using bpos.
+      iIntros (Φ) "Hv HPost".
+
+      destruct t as [[low high] | ].
+      - iPoseProof ((tree_root_leaf_token_leaf _ _ _ _ t_wf) with "Hv") as (?) "->".
+        iDestruct "Hv" as (? ?) "(% & Hptr & Hlhd)".
+        assert (x = #ptr) by (unfold token_leaf_v in H; congruence); subst.
+        wp_rec; wp_load; wp_pures.
+        iApply (search_list_spec with "Hlhd").
+        iNext.
+        iIntros (?) "[% Hlhd]".
+        iApply "HPost".
+        iSplitR; [done|].
+        iExists ptr, lhd.
+        iFrame.
+        done.
+      - iApply (search_nary_tree_spec (node interval l) with "[Hv]").
+        { inversion t_wf; constructor; done. }
+        { done. }
+        iNext.
+        iIntros (?) "[% Hv]".
+        iApply "HPost".
+        iFrame.
+        done.
+    Qed.
 
   End bplus_tree_proofs.
 End bplus_tree.
