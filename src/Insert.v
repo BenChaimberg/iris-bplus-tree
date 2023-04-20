@@ -80,19 +80,20 @@ Section bplus_tree.
                      let: "t" := ref (("target", "target"), "l") in
                      SOME (ref (token_leaf_e "t", NONE))
                  | SOME "l" =>
-                     let: "val" := Fst !"l" in
+                     let: "thd" := Fst !"l" in
                      let: "interval" :=
-                       match: "val" with
+                       match: "thd" with
                          InjL "ptr" => Fst !"ptr"
                        | InjR "ptr" => Fst !"ptr"
                        end in
                      let: "low" := Fst "interval" in
                      let: "high" := Snd "interval" in
-                     let: "new" :=
-                       if: (BinOp LeOp "low" "target") && (BinOp LeOp "target" "high")
-                       then "insert_bplus_tree" ("val", "target")
-                       else "insert_node_list" (Snd !"l", "target") in
-                     "l" <- ("val", "new") ;;
+                     (if: (BinOp LeOp "low" "target") && (BinOp LeOp "target" "high")
+                      then let: "newt" := "insert_bplus_tree" ("thd", "target") in
+                           (* should change interval here *)
+                           "l" <- ("newt", Snd !"l")
+                      else let: "newl" := "insert_node_list" (Snd !"l", "target") in
+                           "l" <- ("thd", "newl")) ;;
                      SOME "l"
                  end) ("lhd", "target") in
             "ptr" <- (Fst !"ptr", "new") ;;
@@ -181,7 +182,7 @@ Section bplus_tree.
     Proof using bpos.
       iIntros (Φ) "Hv HPost".
 
-      iInduction t as [(low & high)|(low & high) ts] "IH" using nary_tree_ind' forall (v).
+      iInduction t as [(low & high)|(low & high) ts] "IH" using nary_tree_ind' forall (Φ v).
       - iPoseProof (tree_leaf_token_leaf with "Hv") as (?) "->".
         iDestruct "Hv" as (? ?) "(% & Hptr & Hlhd)".
         assert (x = #ptr) by (unfold token_leaf_v in H; congruence); subst.
@@ -202,74 +203,83 @@ Section bplus_tree.
         iEval (cbn) in "HPost".
 
         wp_bind ((rec: "insert_node_list" "arg" := _) (lhd, #target))%V.
-        iAssert (∀ Φ',
-            is_list lhd ns ∗
-              (fix branch_node_list (ns0 : list val) (ts0 : list nary_tree) {struct ts0} : iProp :=
-                 match ns0 with
-                 | [] => match ts0 with
-                        | [] => True
-                        | _ :: _ => False
-                        end
-                 | n :: ns1 =>
-                     match ts0 with
-                     | [] => False
-                     | t :: ts1 => is_node n t ∗ branch_node_list ns1 ts1
-                     end
-                 end) ns ts -∗
-              (∀ r : val,
-                 (∃ (ns0 : list val),
-                     is_list r ns0 ∗
-                            (fix branch_node_list (ns1 : list val) (ts0 : list nary_tree) {struct ts0} : iProp :=
-                               match ns1 with
-                               | [] => match ts0 with
-                                      | [] => True
-                                      | _ :: _ => False
-                                      end
-                               | n :: ns2 =>
-                                   match ts0 with
-                                   | [] => False
-                                   | t :: ts1 => is_node n t ∗ branch_node_list ns2 ts1
-                                   end
-                               end) ns0
-                            ((fix insert_aux (l0 : list nary_tree) : list nary_tree :=
-                                match l0 with
-                                | [] => [leaf (target, target)%Z [target]]
-                                | t :: ts0 =>
-                                    let (low0, high0) :=
-                                      match t with
-                                      | leaf interval _ | node interval _ => interval
-                                      end in
-                                    if (low0 <=? target)%Z && (target <=? high0)%Z
-                                    then Insert_nary_tree target t :: ts0
-                                    else t :: insert_aux ts0
-                                end) ts)) -∗ Φ' r) -∗
-              WP (rec: "insert_node_list" "arg" :=
-        let: "p" := Fst "arg" in
-        let: "target" := Snd "arg" in
-        match: "p" with
-          InjL <> =>
-            let: "l" := InjR (ref ("target", InjL #())) in
-            let: "t" := ref ("target", "target", "l") in InjR (ref (InjL "t", InjL #()))
-        | InjR "l" =>
-          let: "val" := Fst ! "l" in
-          let: "interval" := match: "val" with
-                               InjL "ptr" => Fst ! "ptr"
-                             | InjR "ptr" => Fst ! "ptr"
-                             end in
-          let: "low" := Fst "interval" in
-          let: "high" := Snd "interval" in
-          let: "new" := if: if: "low" ≤ "target" then "target" ≤ "high" else #false
-                        then insert_bplus_tree ("val", "target")
-                        else "insert_node_list" (Snd ! "l", "target") in
-          "l" <- ("val", "new");; InjR "l"
-        end)%V (lhd, #target)%V
-              {{ v, Φ' v}}
+        iAssert (
+            ∀ Φ',
+              is_list lhd ns ∗
+                (fix branch_node_list (ns0 : list val) (ts0 : list nary_tree) {struct ts0} : iProp :=
+                   match ns0 with
+                   | [] => match ts0 with
+                          | [] => True
+                          | _ :: _ => False
+                          end
+                   | n :: ns1 =>
+                       match ts0 with
+                       | [] => False
+                       | t :: ts1 => is_node n t ∗ branch_node_list ns1 ts1
+                       end
+                   end) ns ts -∗
+                (∀ r : val,
+                    (∃ (ns0 : list val),
+                        is_list r ns0 ∗
+                          (fix branch_node_list (ns1 : list val) (ts0 : list nary_tree) {struct ts0} : iProp :=
+                             match ns1 with
+                             | [] => match ts0 with
+                                    | [] => True
+                                    | _ :: _ => False
+                                    end
+                             | n :: ns2 =>
+                                 match ts0 with
+                                 | [] => False
+                                 | t :: ts1 => is_node n t ∗ branch_node_list ns2 ts1
+                                 end
+                             end) ns0
+                          ((fix insert_aux (l0 : list nary_tree) : list nary_tree :=
+                              match l0 with
+                              | [] => [leaf (target, target)%Z [target]]
+                              | t :: ts0 =>
+                                  let (low0, high0) :=
+                                    match t with
+                                    | leaf interval _ | node interval _ => interval
+                                    end in
+                                  if (low0 <=? target)%Z && (target <=? high0)%Z
+                                  then Insert_nary_tree target t :: ts0
+                                  else t :: insert_aux ts0
+                              end) ts)) -∗ Φ' r) -∗
+                WP (rec: "insert_node_list" "arg" :=
+                      let: "p" := Fst "arg" in
+                      let: "target" := Snd "arg" in
+                      match: "p" with
+                        NONE =>
+                          let: "l" := SOME (ref ("target", NONE)) in
+                          let: "t" := ref (("target", "target"), "l") in
+                          SOME (ref (token_leaf_e "t", NONE))
+                      | SOME "l" =>
+                          let: "thd" := Fst !"l" in
+                          let: "interval" :=
+                            match: "thd" with
+                              InjL "ptr" => Fst !"ptr"
+                            | InjR "ptr" => Fst !"ptr"
+                            end in
+                          let: "low" := Fst "interval" in
+                          let: "high" := Snd "interval" in
+                          (if: (BinOp LeOp "low" "target") && (BinOp LeOp "target" "high")
+                           then let: "newt" := insert_bplus_tree ("thd", "target") in
+                                (* should change interval here *)
+                                "l" <- ("newt", Snd !"l")
+                           else let: "newl" := "insert_node_list" (Snd !"l", "target") in
+                                "l" <- ("thd", "newl")) ;;
+                          SOME "l"
+                      end)%V (lhd, #target)%V
+                {{ v, Φ' v}}
           )%I as "IH'".
         { iIntros (Φ') "[Hlhd Hns] HPost".
+          inversion_clear t_wf
+            as [| ? ? ? ? _ _ trees_wf _].
+            subst intervals.
 
-          iInduction ts as [|thd trest] "IH'" forall (ns lhd).
-          - destruct ns as [|nhd nrest]; [|done].
-            iDestruct "Hlhd" as "->".
+          iInduction ts as [|thd trest] "IH'" forall (Φ' ns lhd);
+            destruct ns as [|nhd nrest]; [|done|done|].
+          - iDestruct "Hlhd" as "->".
 
             wp_alloc newl as "Hnewl";
               wp_alloc newt as "Hnewt";
@@ -285,7 +295,153 @@ Section bplus_tree.
             iExists newl, (InjLV #()).
             iFrame.
             done.
-        - admit. }
+          - iEval (rewrite big_opL_cons) in "IH".
+            iDestruct "IH" as "[IHthd IHtrest]".
+            apply Forall_cons in trees_wf.
+            destruct trees_wf as [thd_wf trest_wf].
+
+            iDestruct "Hlhd" as (l0 ?) "(-> & Hl0 & Hnrest)".
+            destruct thd.
+            * destruct interval as [low' high'].
+              iDestruct "Hns" as "[Hthd Hns]".
+              iDestruct "Hthd" as (ptr' leaves) "(-> & Hptr' & Hleaves)".
+              wp_load; wp_load; wp_pures.
+              destruct (bool_decide (Z.le low' target)) eqn:?; wp_pures.
+              -- destruct (bool_decide (Z.le target high')) eqn:?; wp_pures.
+                 ++ wp_bind (insert_bplus_tree _).
+                    iApply ("IHthd" with "[] [Hptr' Hleaves]").
+                    { apply nary_tree_wf_remove_len in thd_wf; done. }
+                    { iExists ptr', leaves; iFrame; done. }
+                    iNext.
+                    iIntros (?) "Hr".
+                    wp_load; wp_store; wp_pure.
+                    iApply "HPost".
+                    iExists (r :: nrest).
+                    iSplitL "Hl0 Hnrest".
+                    { iExists l0, hd'; iFrame; done. }
+                    apply bool_decide_eq_true_1 in Heqb0;
+                      apply Z.leb_le in Heqb0;
+                      rewrite Heqb0.
+                    apply bool_decide_eq_true_1 in Heqb1;
+                      apply Z.leb_le in Heqb1;
+                      rewrite Heqb1.
+                    iFrame.
+                    done.
+
+                 ++ wp_load; wp_pure; wp_pure;
+                      wp_bind ((rec: "insert_node_list" "arg" := _) (hd', #target))%V.
+                    iApply ("IH'" with "[] [] [Hnrest] [Hns]"); try done.
+                    iIntros (?) "[% [Hr Hns0]]".
+                    wp_store; wp_pure.
+                    iApply "HPost".
+                    apply bool_decide_eq_true_1 in Heqb0;
+                      apply Z.leb_le in Heqb0;
+                      rewrite Heqb0.
+                    apply bool_decide_eq_false_1 in Heqb1;
+                      assert (Z.lt high' target) by lia;
+                      apply Z.ltb_lt in H0;
+                      rewrite Z.ltb_antisym in H0;
+                      symmetry in H0;
+                      apply negb_sym in H0;
+                      cbn in H0;
+                      rewrite H0.
+                    cbn.
+                    iExists (token_leaf_v #ptr' :: ns0).
+                    iFrame.
+                    iSplitL "Hl0 Hr".
+                    { iExists l0, r; iFrame; done. }
+                    iExists ptr', leaves; iFrame; done.
+
+              -- wp_load; wp_pure; wp_pure;
+                   wp_bind ((rec: "insert_node_list" "arg" := _) (hd', #target))%V.
+                 iApply ("IH'" with "[] [] [Hnrest] [Hns]"); try done.
+                 iIntros (?) "[% [Hr Hns0]]".
+                 wp_store; wp_pures.
+                 iApply "HPost".
+
+                 apply bool_decide_eq_false_1 in Heqb0;
+                   assert (Z.lt target low') by lia;
+                   apply Z.ltb_lt in H0;
+                   rewrite Z.ltb_antisym in H0;
+                   symmetry in H0;
+                   apply negb_sym in H0;
+                   cbn in H0;
+                   rewrite H0.
+                 iExists (token_leaf_v #ptr' :: ns0).
+                 iFrame.
+                 iSplitL "Hl0 Hr".
+                 { iExists l0, r; iFrame; done. }
+                 iExists ptr', leaves; iFrame; done.
+
+            * destruct interval as [low' high'].
+              iDestruct "Hns" as "[Hthd Hns]".
+              iDestruct "Hthd" as (ptr' leaves) "(% & -> & Hptr' & Hleaves)".
+              wp_load; wp_load; wp_pures.
+              destruct (bool_decide (Z.le low' target)) eqn:?; wp_pures.
+              -- destruct (bool_decide (Z.le target high')) eqn:?; wp_pures.
+                 ++ wp_bind (insert_bplus_tree _).
+                    iApply ("IHthd" with "[] [Hptr' Hleaves]").
+                    { apply nary_tree_wf_remove_len in thd_wf; done. }
+                    { iExists ptr', leaves, ns; iFrame; done. }
+                    iNext.
+                    iIntros (?) "Hr".
+                    wp_load; wp_store; wp_pure.
+                    iApply "HPost".
+                    iExists (r :: nrest).
+                    iSplitL "Hl0 Hnrest".
+                    { iExists l0, hd'; iFrame; done. }
+                    apply bool_decide_eq_true_1 in Heqb0;
+                      apply Z.leb_le in Heqb0;
+                      rewrite Heqb0.
+                    apply bool_decide_eq_true_1 in Heqb1;
+                      apply Z.leb_le in Heqb1;
+                      rewrite Heqb1.
+                    iFrame.
+                    done.
+
+                 ++ wp_load; wp_pure; wp_pure;
+                      wp_bind ((rec: "insert_node_list" "arg" := _) (hd', #target))%V.
+                    iApply ("IH'" with "[] [] [Hnrest] [Hns]"); try done.
+                    iIntros (?) "[% [Hr Hns0]]".
+                    wp_store; wp_pure.
+                    iApply "HPost".
+                    apply bool_decide_eq_true_1 in Heqb0;
+                      apply Z.leb_le in Heqb0;
+                      rewrite Heqb0.
+                    apply bool_decide_eq_false_1 in Heqb1;
+                      assert (Z.lt high' target) by lia;
+                      apply Z.ltb_lt in H0;
+                      rewrite Z.ltb_antisym in H0;
+                      symmetry in H0;
+                      apply negb_sym in H0;
+                      cbn in H0;
+                      rewrite H0.
+                    iExists (token_branch_v #ptr' :: ns0).
+                    iFrame.
+                    iSplitL "Hl0 Hr".
+                    { iExists l0, r; iFrame; done. }
+                    iExists ptr', leaves, ns; iFrame; done.
+
+              -- wp_load; wp_pure; wp_pure;
+                   wp_bind ((rec: "insert_node_list" "arg" := _) (hd', #target))%V.
+                 iApply ("IH'" with "[] [] [Hnrest] [Hns]"); try done.
+                 iIntros (?) "[% [Hr Hns0]]".
+                 wp_store; wp_pures.
+                 iApply "HPost".
+
+                 apply bool_decide_eq_false_1 in Heqb0;
+                   assert (Z.lt target low') by lia;
+                   apply Z.ltb_lt in H0;
+                   rewrite Z.ltb_antisym in H0;
+                   symmetry in H0;
+                   apply negb_sym in H0;
+                   cbn in H0;
+                   rewrite H0.
+                 iExists (token_branch_v #ptr' :: ns0).
+                 iFrame.
+                 iSplitL "Hl0 Hr".
+                 { iExists l0, r; iFrame; done. }
+                 iExists ptr', leaves, ns; iFrame; done. }
 
         iApply ("IH'" with "[Hlhd Hns]").
         { iFrame. }
@@ -297,8 +453,7 @@ Section bplus_tree.
         iExists ptr, r, ns0.
         iFrame.
         done.
-
-    Admitted.
+    Qed.
 
   End bplus_tree_proofs.
 End bplus_tree.
