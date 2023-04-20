@@ -1,20 +1,15 @@
 From iris.proofmode Require Export proofmode.
 
 Section nary_tree.
-  Definition A := nat.
-  Definition eqb_A := Nat.eqb.
-  Definition ord_A := Nat.lt.
-  Definition ordeq_A := Nat.le.
-
   Context (b : nat).
 
   Inductive nary_tree : Set :=
-  | leaf (interval : A * A) (l : list A) : nary_tree
-  | node (interval : A * A) (l : list nary_tree) : nary_tree.
+  | leaf (interval : Z * Z) (l : list Z) : nary_tree
+  | node (interval : Z * Z) (l : list nary_tree) : nary_tree.
 
   Inductive bplus_tree : Set :=
-  | root_leaf (interval : A * A) (l : list A) : bplus_tree
-  | root_node (interval : A * A) (l : list nary_tree) : bplus_tree.
+  | root_leaf (interval : Z * Z) (l : list Z) : bplus_tree
+  | root_node (interval : Z * Z) (l : list nary_tree) : bplus_tree.
 
   Fixpoint nary_tree_ind'
     (P : nary_tree -> Prop)
@@ -32,19 +27,19 @@ Section nary_tree.
              end) trees)
     end.
 
-  Fixpoint list_sorted (l : list A) :=
+  Fixpoint list_sorted (l : list Z) :=
     match l with
     | [] => True
     | x :: l =>
         match l with
         | [] => True
-        | y :: _ => ord_A x y /\ list_sorted l
+        | y :: _ => Z.lt x y /\ list_sorted l
         end
     end.
   
   Inductive nary_tree_wf : nary_tree -> Prop :=
     | leaf_wf low high vals :
-        ordeq_A low high ->
+        Z.le low high ->
           hd low vals = low ->
           List.last vals high = high ->
           b / 2 <= length vals <= b ->
@@ -60,27 +55,27 @@ Section nary_tree.
             trees
         in
         b / 2 <= length trees <= b ->
-        ordeq_A low high ->
-        Forall (fun (interval : A * A) =>
+        Z.le low high ->
+        Forall (fun (interval : Z * Z) =>
                   let (low', high') := interval in
-                  ord_A low low' /\ ord_A high' high)
+                  Z.lt low low' /\ Z.lt high' high)
           intervals ->
         Forall nary_tree_wf trees ->
-        (fix intervals_sorted (l : list (A * A)) : Prop :=
+        (fix intervals_sorted (l : list (Z * Z)) : Prop :=
            match l with
            | [] => True
            | (_, high') :: rest =>
                match rest with
                | [] => True
                | (low', high'') :: rest' =>
-                   ord_A high' low'
+                   Z.lt high' low'
                end /\ intervals_sorted rest
            end) intervals ->
         nary_tree_wf (node (low, high) trees).
 
   Inductive nary_tree_wf_no_len : nary_tree -> Prop :=
     | leaf_wf_nl low high vals :
-        ordeq_A low high ->
+        Z.le low high ->
           hd low vals = low ->
           List.last vals high = high ->
           list_sorted vals ->
@@ -94,20 +89,20 @@ Section nary_tree.
                  end)
             trees
         in
-        ordeq_A low high ->
-        Forall (fun (interval : A * A) =>
+        Z.le low high ->
+        Forall (fun (interval : Z * Z) =>
                   let (low', high') := interval in
-                  ord_A low low' /\ ord_A high' high)
+                  Z.lt low low' /\ Z.lt high' high)
           intervals ->
         Forall nary_tree_wf trees ->
-        (fix intervals_sorted (l : list (A * A)) : Prop :=
+        (fix intervals_sorted (l : list (Z * Z)) : Prop :=
            match l with
            | [] => True
            | (_, high') :: rest =>
                match rest with
                | [] => True
                | (low', high'') :: rest' =>
-                   ord_A high' low'
+                   Z.lt high' low'
                end /\ intervals_sorted rest
            end) intervals ->
         nary_tree_wf_no_len (node (low, high) trees).
@@ -117,7 +112,7 @@ Section nary_tree.
 
   Inductive bplus_tree_wf : bplus_tree -> Prop :=
     | root_leaf_wf low high vals :
-        ordeq_A low high ->
+        Z.le low high ->
           hd low vals = low ->
           List.last vals high = high ->
           0 <= length vals <= b - 1 ->
@@ -133,25 +128,25 @@ Section nary_tree.
             trees
         in
         2 <= length trees <= b ->
-        ordeq_A low high ->
-        Forall (fun (interval : A * A) =>
+        Z.le low high ->
+        Forall (fun (interval : Z * Z) =>
                   let (low', high') := interval in
-                  ord_A low low' /\ ord_A high' high)
+                  Z.lt low low' /\ Z.lt high' high)
           intervals ->
         Forall nary_tree_wf trees ->
-        (fix intervals_sorted (l : list (A * A)) : Prop :=
+        (fix intervals_sorted (l : list (Z * Z)) : Prop :=
            match l with
            | [] => True
            | (_, high') :: rest =>
                match rest with
                | [] => True
                | (low', high'') :: rest' =>
-                   ord_A high' low'
+                   Z.lt high' low'
                end /\ intervals_sorted rest
            end) intervals ->
         bplus_tree_wf (root_node (low, high) trees).
 
-  Lemma destruct_list_back : forall (l : list A), {x:A & {init:list A | l = init ++ [x] }}+{l = [] }.
+  Lemma destruct_list_back : forall (l : list Z), {x:Z & {init:list Z | l = init ++ [x] }}+{l = [] }.
   Proof.
     induction l.
     - right.
@@ -166,7 +161,7 @@ Section nary_tree.
         done.
   Qed.
 
-  Definition nary_tree_interval t : (A * A) :=
+  Definition nary_tree_interval t : (Z * Z) :=
     match t with
     | leaf i _ => i
     | node i _ => i
@@ -178,14 +173,14 @@ Section nary_tree.
     | node _ l => list_sum (map size l)
     end.
 
-  Fixpoint In_list (v : A) (l : list A) :=
+  Fixpoint In_list (v : Z) (l : list Z) :=
     match l with
     | [] => false
-    | x :: xs => orb (eqb_A x v) (In_list v xs)
+    | x :: xs => orb (Z.eqb x v) (In_list v xs)
     end.
 
   Lemma target_above_not_in_list target high vals:
-    high < target ->
+    Z.lt high target ->
     List.last vals high = high ->
     list_sorted vals ->
     In_list target vals = false.
@@ -196,15 +191,14 @@ Section nary_tree.
     induction init.
     - cbn.
       rewrite orb_false_r.
-      unfold eqb_A.
-      enough (high ≠ target) by (apply Nat.eqb_neq; done).
+      enough (high ≠ target) by (apply Z.eqb_neq; done).
       lia.
     - assert (list_sorted (init ++ [high])).
       { cbn in sorted_vals.
         assert (exists y l, init ++ [high] = y :: l).
         { destruct init.
           - exists high, []; done.
-          - exists a0, (init ++ [high]); done. }
+          - exists z, (init ++ [high]); done. }
         destruct H as (? & ? & ?).
         rewrite H in sorted_vals.
         destruct sorted_vals as (_ & ?).
@@ -218,8 +212,7 @@ Section nary_tree.
       induction init.
       + cbn in sorted_vals.
         enough (a ≠ target).
-        { apply Nat.eqb_neq; done. }
-        unfold ord_A in sorted_vals.
+        { apply Z.eqb_neq; done. }
         lia.
       + apply IHinit.
         cbn in sorted_vals.
@@ -228,16 +221,15 @@ Section nary_tree.
         assert (exists y l, init ++ [high] = y :: l).
         { destruct init.
           - exists high, []; done.
-          - exists a1, (init ++ [high]); done. }
+          - exists z, (init ++ [high]); done. }
         destruct H0 as (? & ? & ?).
         rewrite H0 in sorted_vals; rewrite H0.
         destruct sorted_vals.
-        unfold ord_A in *.
         split; [lia|done].
   Qed.
 
   Lemma target_below_not_in_list target low vals:
-    target < low ->
+    Z.lt target low ->
     hd low vals = low ->
     list_sorted vals ->
     In_list target vals = false.
@@ -245,31 +237,29 @@ Section nary_tree.
     intros target_let_low hd_vals_low sorted_vals.
     destruct vals; [done|].
     cbn in *; subst.
-    assert (eqb_A low target = false).
+    assert (Z.eqb low target = false).
     { enough (low ≠ target).
-      { apply Nat.eqb_neq; done. }
+      { apply Z.eqb_neq; done. }
       lia. }
     rewrite H.
     rewrite orb_false_l.
     induction vals; [done|].
     cbn.
     destruct sorted_vals as [? sorted_vals].
-    assert (eqb_A a target = false).
+    assert (Z.eqb a target = false).
     { enough (a ≠ target).
-      { apply Nat.eqb_neq; done. }
-      unfold ord_A in *.
+      { apply Z.eqb_neq; done. }
       lia. }
     rewrite H1.
     rewrite orb_false_l.
     apply IHvals.
     cbn in sorted_vals.
     destruct vals; [done|].
-    unfold ord_A in *.
     destruct sorted_vals.
     split; [lia|done].
   Qed.
 
-  Fixpoint In_nary_tree (v : A) (t : nary_tree) {struct t} : bool :=
+  Fixpoint In_nary_tree (v : Z) (t : nary_tree) {struct t} : bool :=
     match t with
     | leaf _ l => In_list v l
     | node _ l =>
@@ -280,7 +270,7 @@ Section nary_tree.
            end) l
     end.
 
-  Definition In_bplus_tree (v : A) (t : bplus_tree) : bool :=
+  Definition In_bplus_tree (v : Z) (t : bplus_tree) : bool :=
     match t with
     | root_leaf _ l => In_list v l
     | root_node _ l =>
@@ -293,11 +283,10 @@ Section nary_tree.
 
   Lemma target_above_below_not_in_node target t:
     nary_tree_wf t ->
-    (ord_A target (fst (nary_tree_interval t)) \/ ord_A (snd (nary_tree_interval t)) target) ->
+    (Z.lt target (fst (nary_tree_interval t)) \/ Z.lt (snd (nary_tree_interval t)) target) ->
     In_nary_tree target t = false.
   Proof.
     intros t_wf ord_target_low_high.
-    unfold ord_A in ord_target_low_high.
     specialize (nary_tree_wf_remove_len _ t_wf) as t_wf'.
     clear t_wf.
 
@@ -322,7 +311,6 @@ Section nary_tree.
           destruct t;
             destruct interval as [low' high'];
             cbn;
-            unfold ord_A, ordeq_A in *;
             lia. }
 
       rewrite orb_false_l.
@@ -352,16 +340,16 @@ Section nary_tree.
         (branch :: branches)
     in
     Forall nary_tree_wf (branch :: branches) ->
-    (fix intervals_sorted (l : list (A * A)) : Prop :=
+    (fix intervals_sorted (l : list (Z * Z)) : Prop :=
        match l with
        | [] => True
        | (_, high') :: rest =>
            match rest with
            | [] => True
-           | (low', _) :: _ => ord_A high' low'
+           | (low', _) :: _ => Z.lt high' low'
            end ∧ intervals_sorted rest
        end) intervals ->
-    ordeq_A (fst (nary_tree_interval branch)) target /\ ordeq_A target (snd (nary_tree_interval branch)) ->
+    Z.le (fst (nary_tree_interval branch)) target /\ Z.le target (snd (nary_tree_interval branch)) ->
     (fix In_aux (l : list nary_tree) :=
            match l with
            | [] => false
@@ -394,7 +382,6 @@ Section nary_tree.
           cbn in H2; cbn.
           destruct n;
             destruct interval;
-            unfold ord_A, ordeq_A in *;
             lia. }
       rewrite H1.
       clear H1 IHbranches.
@@ -404,8 +391,8 @@ Section nary_tree.
       destruct intervals_sorted as (ord_high_low' & _).
       cbn; cbn in H0.
 
-      assert (ord_A target low') as ord_target_low'
-          by (unfold ord_A, ordeq_A in *; lia).
+      assert (Z.lt target low') as ord_target_low'
+          by lia.
 
       apply (target_below_not_in_list _ low'); done.
 
@@ -427,7 +414,6 @@ Section nary_tree.
           cbn in H2; cbn.
           destruct n;
             destruct interval;
-            unfold ord_A, ordeq_A in *;
             lia. }
       rewrite H1.
       clear H1 IHbranches.
@@ -436,8 +422,8 @@ Section nary_tree.
       cbn in intervals, intervals_sorted.
       destruct intervals_sorted as (ord_high_low' & _).
       cbn in H0.
-      assert (ord_A target low') as ord_target_low'
-          by (unfold ord_A, ordeq_A in *; lia).
+      assert (Z.lt target low') as ord_target_low'
+          by lia.
 
       apply (target_above_below_not_in_node); [|left]; done.
 
@@ -460,7 +446,6 @@ Section nary_tree.
           cbn in H2; cbn.
           destruct n;
             destruct interval;
-            unfold ord_A, ordeq_A in *;
             lia. }
       rewrite not_in_branches.
       rewrite orb_false_r.
@@ -469,8 +454,8 @@ Section nary_tree.
       destruct intervals_sorted as (ord_high_low' & _).
       cbn; cbn in H0.
 
-      assert (ord_A target low') as ord_target_low'
-          by (unfold ord_A, ordeq_A in *; lia).
+      assert (Z.lt target low') as ord_target_low'
+          by lia.
 
       apply (target_below_not_in_list _ low'); done.
     - destruct interval as (low & high), interval0 as (low' & high').
@@ -491,7 +476,6 @@ Section nary_tree.
           cbn in H2; cbn.
           destruct n;
             destruct interval;
-            unfold ord_A, ordeq_A in *;
             lia. }
       rewrite H1.
       clear H1 IHbranches.
@@ -500,8 +484,8 @@ Section nary_tree.
       cbn in intervals, intervals_sorted.
       destruct intervals_sorted as (ord_high_low' & _).
       cbn in H0.
-      assert (ord_A target low') as ord_target_low'
-          by (unfold ord_A, ordeq_A in *; lia).
+      assert (Z.lt target low') as ord_target_low'
+          by lia.
 
       apply (target_above_below_not_in_node); [|left]; done.
   Qed.

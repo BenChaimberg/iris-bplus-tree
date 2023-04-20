@@ -30,12 +30,10 @@ Section bplus_tree.
   Definition token_leaf_v v := InjLV v.
   Definition token_branch_v v := InjRV v.
 
-  Definition tval := nat.
+  Definition tval := Z.
   Variable (ninf pinf : tval).
-  Definition teqb := Nat.eqb.
-  Definition tord := Nat.lt.
-  Axiom pinf_max : forall v, (tord v pinf).
-  Axiom ninf_minax : forall v, (tord ninf v).
+  Axiom pinf_max : forall v, (Z.lt v pinf).
+  Axiom ninf_minax : forall v, (Z.lt ninf v).
 
   Variable b : nat.
   Hypothesis beven : Zeven b.
@@ -135,28 +133,24 @@ Section bplus_tree.
       done.
     Qed.
 
-    Lemma bool_decide_true_eqb (x y : nat) :
-      bool_decide (#x = #y) = true -> Nat.eqb x y = true.
+    Lemma bool_decide_true_Zeqb : ∀ x y : Z, bool_decide (#x = #y) = true → (x =? y)%Z = true.
     Proof.
       clear bpos.
-      intro.
+      intros.
       apply bool_decide_eq_true_1 in H.
       injection H as H.
-      assert (x = y) by lia; subst.
-      rewrite Nat.eqb_refl.
+      subst.
+      rewrite Z.eqb_refl.
       done.
     Qed.
 
-    Lemma bool_decide_false_eqb (x y : nat) :
-      bool_decide (#x = #y) = false -> Nat.eqb x y = false.
+    Lemma bool_decide_false_Zeqb : ∀ x y : Z, bool_decide (#x = #y) = false → (x =? y)%Z = false.
     Proof.
       clear bpos.
-      intro.
+      intros.
+      apply Z.eqb_neq.
       apply bool_decide_eq_false in H.
-      assert (not (Z.of_nat x = Z.of_nat y)) by congruence.
-      assert (not (x = y)) by auto.
-      apply Nat.eqb_neq in H1.
-      done.
+      congruence.
     Qed.
 
   End bplus_tree_proofs.

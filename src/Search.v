@@ -90,8 +90,8 @@ Section bplus_tree.
           iSplitR "Hl' Hl".
           2:(iExists l', hd'; iFrame; done).
           iPureIntro.
-          cbn; unfold eqb_A.
-          rewrite (bool_decide_true_eqb _ _ Heqb0).
+          cbn.
+          rewrite (bool_decide_true_Zeqb _ _ Heqb0).
           done.
         + wp_pures; wp_load; wp_pures.
           iApply ("IH" $! Φ hd' with "Hl").
@@ -101,8 +101,8 @@ Section bplus_tree.
           iClear "IH".
           iSplitR.
           * iPureIntro.
-            unfold In_list, eqb_A.
-            rewrite (bool_decide_false_eqb _ _ Heqb0).
+            unfold In_list.
+            rewrite (bool_decide_false_Zeqb _ _ Heqb0).
             cbn.
             done.
           * iExists l', hd'.
@@ -209,8 +209,8 @@ Section bplus_tree.
               iDestruct "Hns" as "[Hthd Hns]".
               iDestruct "Hthd" as (ptr' leaves) "(-> & Hptr' & Hleaves)".
               wp_load; wp_load; wp_pures.
-              destruct (bool_decide (Z.le (Z.of_nat low') (Z.of_nat target))) eqn:?; wp_pures.
-              -- destruct (bool_decide (Z.le (Z.of_nat target) (Z.of_nat high'))) eqn:?; wp_pures.
+              destruct (bool_decide (Z.le low' target)) eqn:?; wp_pures.
+              -- destruct (bool_decide (Z.le target high')) eqn:?; wp_pures.
                  ++ iApply ("IHthd" $! (nary_tree_wf_remove_len _ _ t_wf) with "[Hptr' Hleaves]").
                     { iExists ptr', leaves.
                       iFrame.
@@ -223,18 +223,6 @@ Section bplus_tree.
                       cbn.
                       apply bool_decide_eq_true_1 in Heqb0.
                       apply bool_decide_eq_true_1 in Heqb1.
-                      assert (low' <= target) as low'_le_target by lia.
-                      assert (target <= high') as target_le_high' by lia.
-                      assert (ordeq_A low' target) as ordeq_low'_target.
-                      { destruct low'_le_target.
-                        - left.
-                        - right.
-                          lia. }
-                      assert (ordeq_A target high') as ordeq_target_high'.
-                      { destruct target_le_high'.
-                        - left.
-                        - right.
-                          lia. }
 
                       assert ((fix In_aux (l1 : list nary_tree) : bool :=
                                  match l1 with
@@ -271,7 +259,7 @@ Section bplus_tree.
                         rewrite not_in_l.
                         rewrite orb_false_l.
                         done. }
-                      assert (high' < target).
+                      assert (Z.lt high' target).
                       { apply bool_decide_eq_false_1 in Heqb1.
                         lia. }
                       inversion t_wf; subst.
@@ -302,7 +290,7 @@ Section bplus_tree.
                      rewrite not_in_l.
                      rewrite orb_false_l.
                      done. }
-                   assert (target < low').
+                   assert (Z.lt target low').
                    { apply bool_decide_eq_false_1 in Heqb0.
                      lia. }
                    inversion t_wf; subst.
@@ -320,8 +308,8 @@ Section bplus_tree.
               iDestruct "Hns" as "[Hthd Hns]".
               iDestruct "Hthd" as (ptr' leaves) "(% & -> & Hptr' & Hleaves)".
               wp_load; wp_load; wp_pures.
-              destruct (bool_decide (Z.le (Z.of_nat low') (Z.of_nat target))) eqn:?; wp_pures.
-              -- destruct (bool_decide (Z.le (Z.of_nat target) (Z.of_nat high'))) eqn:?; wp_pures.
+              destruct (bool_decide (Z.le low' target)) eqn:?; wp_pures.
+              -- destruct (bool_decide (Z.le target high')) eqn:?; wp_pures.
                  ++ iApply ("IHthd" $! (nary_tree_wf_remove_len _ _ t_wf) with "[Hptr' Hleaves]").
                     { iExists ptr', leaves, ns.
                       iFrame.
@@ -335,18 +323,6 @@ Section bplus_tree.
                       cbn.
                       apply bool_decide_eq_true_1 in Heqb0.
                       apply bool_decide_eq_true_1 in Heqb1.
-                      assert (low' <= target) as low'_le_target by lia.
-                      assert (target <= high') as target_le_high' by lia.
-                      assert (ordeq_A low' target) as ordeq_low'_target.
-                      { destruct low'_le_target.
-                        - left.
-                        - right.
-                          lia. }
-                      assert (ordeq_A target high') as ordeq_target_high'.
-                      { destruct target_le_high'.
-                        - left.
-                        - right.
-                          lia. }
 
                       assert ((fix In_aux (l1 : list nary_tree) : bool :=
                                  match l1 with
@@ -383,7 +359,7 @@ Section bplus_tree.
                         rewrite not_in_l.
                         rewrite orb_false_l.
                         done. }
-                      assert (high' < target).
+                      assert (Z.lt high' target).
                       { apply bool_decide_eq_false_1 in Heqb1.
                         lia. }
                       inversion t_wf; subst.
@@ -414,7 +390,7 @@ Section bplus_tree.
                      rewrite not_in_l.
                      rewrite orb_false_l.
                      done. }
-                   assert (target < low').
+                   assert (Z.lt target low').
                    { apply bool_decide_eq_false_1 in Heqb0.
                      lia. }
                    inversion t_wf; subst.

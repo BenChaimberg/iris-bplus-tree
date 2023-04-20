@@ -7,10 +7,8 @@ Require Import BPlusTree.
 
 Section bplus_tree.
   Variable (ninf pinf : tval).
-  Definition teqb := Nat.eqb.
-  Definition tord := Nat.lt.
-  Axiom pinf_max : forall v, (tord v pinf).
-  Axiom ninf_minax : forall v, (tord ninf v).
+  Axiom pinf_max : forall v, (Z.lt v pinf).
+  Axiom ninf_minax : forall v, (Z.lt ninf v).
 
   Variable b : nat.
   Hypothesis beven : Zeven b.
@@ -33,7 +31,6 @@ Section bplus_tree.
     Proof using beven bpos.
       constructor; try done.
       - specialize (pinf_max ninf) as ?.
-        unfold ordeq_A, tord in *.
         lia.
       - split; try done.
         specialize (bge2).
