@@ -5,3 +5,4 @@ src/NaryTree.v
 src/BPlusTree.v
 src/New.v
 src/Search.v
+src/Insert.v
