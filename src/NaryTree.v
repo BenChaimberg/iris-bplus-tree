@@ -146,7 +146,7 @@ Section nary_tree.
            end) intervals ->
         bplus_tree_wf (root_node (low, high) trees).
 
-  Lemma destruct_list_back : forall (l : list Z), {x:Z & {init:list Z | l = init ++ [x] }}+{l = [] }.
+  Lemma destruct_list_back {A} : forall (l : list A), {x:A & {init:list A | l = init ++ [x] }}+{l = [] }.
   Proof.
     induction l.
     - right.

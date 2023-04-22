@@ -49,6 +49,9 @@ Section bplus_tree.
       done. }
     lia.
   Qed.
+  Lemma b2ge1 : 1 <= (b/2).
+  Proof using beven bpos.
+  Admitted.
 
   Definition tree_spec := bplus_tree.
   Definition tree_spec_wf := bplus_tree_wf b.
