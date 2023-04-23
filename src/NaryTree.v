@@ -58,7 +58,7 @@ Section nary_tree.
         Z.le low high ->
         Forall (fun (interval : Z * Z) =>
                   let (low', high') := interval in
-                  Z.lt low low' /\ Z.lt high' high)
+                  Z.le low low' /\ Z.le high' high)
           intervals ->
         Forall nary_tree_wf trees ->
         (fix intervals_sorted (l : list (Z * Z)) : Prop :=
@@ -92,7 +92,7 @@ Section nary_tree.
         Z.le low high ->
         Forall (fun (interval : Z * Z) =>
                   let (low', high') := interval in
-                  Z.lt low low' /\ Z.lt high' high)
+                  Z.le low low' /\ Z.le high' high)
           intervals ->
         Forall nary_tree_wf trees ->
         (fix intervals_sorted (l : list (Z * Z)) : Prop :=
@@ -131,7 +131,7 @@ Section nary_tree.
         Z.le low high ->
         Forall (fun (interval : Z * Z) =>
                   let (low', high') := interval in
-                  Z.lt low low' /\ Z.lt high' high)
+                  Z.le low low' /\ Z.le high' high)
           intervals ->
         Forall nary_tree_wf trees ->
         (fix intervals_sorted (l : list (Z * Z)) : Prop :=
