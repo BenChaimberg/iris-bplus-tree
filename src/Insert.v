@@ -7,6 +7,8 @@ Require Import BPlusTree.
 
 Section nary_tree.
   Context (b : nat).
+  Context (beven : Zeven b).
+  Context (bpos : 0 < b).
 
   Fixpoint insert_list_spec (target : Z) (l : list Z) : list Z :=
     match l with
@@ -178,6 +180,303 @@ Section nary_tree.
             in
             root_node (new_low, new_high) new_branches
       end.
+    Lemma take_b2_cons' {A} (l : list A) : b <= length l -> (exists x l', take (b/2) l = x :: l').
+    Proof using beven bpos.
+      intro.
+      assert (1 < 2) by lia.
+      specialize (Nat.div_lt b 2 bpos H0) as b2ltb.
+      specialize (take_length l (b/2)) as take_len.
+      specialize (b2ge1 _ beven bpos) as ?.
+      assert (0 < b/2) by lia.
+      destruct (take (b/2) l);
+        [ rewrite nil_length in take_len; lia | eauto ].
+    Qed.
+
+    Lemma take_b2_cons {A} (l : list A) : b < length l -> (exists x l', take (b/2) l = x :: l').
+    Proof using beven bpos. intros; assert (b <= length l) by lia; apply take_b2_cons'; done. Qed.
+
+    Lemma take_b2_snoc' {A} (l : list A) : b <= length l -> (exists x l', take (b/2) l = l' ++ [x]).
+    Proof using beven bpos.
+      intro.
+      assert (1 < 2) by lia.
+      specialize (Nat.div_lt b 2 bpos H0) as b2ltb.
+      specialize (take_length l (b/2)) as take_len.
+      specialize (b2ge1 _ beven bpos) as ?.
+      assert (0 < b/2) by lia.
+      destruct (destruct_list_back (take (b/2) l)) as [[x [init ?]]|];
+        subst; rewrite e in take_len; rewrite e;
+        [ eauto | rewrite nil_length in take_len; lia ].
+    Qed.
+
+    Lemma take_b2_snoc {A} (l : list A) : b < length l -> (exists x l', take (b/2) l = l' ++ [x]).
+    Proof using beven bpos. intros; assert (b <= length l) by lia; apply take_b2_snoc'; done. Qed.
+
+    Lemma drop_b2_cons' {A} (l : list A) : b <= length l -> (exists x l', drop (b/2) l = x :: l').
+    Proof using bpos.
+      intro.
+      assert (1 < 2) by lia.
+      specialize (Nat.div_lt b 2 bpos H0) as b2ltb.
+      specialize (drop_length l (b/2)) as drop_len.
+      destruct (drop (b/2) l);
+        [ rewrite nil_length in drop_len; lia | eauto ].
+    Qed.
+
+    Lemma drop_b2_cons {A} (l : list A) : b < length l -> (exists x l', drop (b/2) l = x :: l').
+    Proof using beven bpos. intros; assert (b <= length l) by lia; apply drop_b2_cons'; done. Qed.
+
+    Lemma drop_b2_snoc' {A} (l : list A) : b <= length l -> (exists x l', drop (b/2) l = l' ++ [x]).
+    Proof using bpos.
+      intro.
+      assert (1 < 2) by lia.
+      specialize (Nat.div_lt b 2 bpos H0) as b2ltb.
+      specialize (drop_length l (b/2)) as drop_len.
+      destruct (destruct_list_back (drop (b/2) l)) as [[x [init ?]]|];
+        subst; rewrite e in drop_len; rewrite e;
+        [ eauto | rewrite nil_length in drop_len; lia ].
+    Qed.
+
+    Lemma drop_b2_snoc {A} (l : list A) : b < length l -> (exists x l', drop (b/2) l = l' ++ [x]).
+    Proof using bpos. intros; assert (b <= length l) by lia; apply drop_b2_snoc'; done. Qed.
+
+    Lemma list_sorted_cons x l : list_sorted (x :: l) -> list_sorted l.
+    Proof. destruct l; [|intros []]; done. Qed.
+
+    Lemma insert_list_sorted l target : list_sorted l -> list_sorted (insert_list_spec target l).
+    Proof.
+      clear bpos.
+      induction l as [|x l]; [done|].
+      cbn.
+      intros H.
+      destruct l as [|y l].
+      - destruct (Z.eqb x target) eqn:?; [done|].
+        destruct (Z.ltb x target) eqn:?.
+        + apply Z.ltb_lt in Heqb1; done.
+        + cbn; lia.
+      - destruct (Z.eqb x target) eqn:?; [done|].
+        destruct (Z.ltb x target) eqn:?.
+        + destruct (insert_list_spec target (y :: l)) eqn:?; [done|].
+          destruct H.
+          cbn.
+          split.
+          * assert (z = y \/ z = target).
+            { cbn in Heql0; destruct (Z.eqb y target) eqn:?; destruct (Z.ltb y target) eqn:?; inversion Heql0; auto. }
+            destruct H1; subst; auto.
+            apply Z.ltb_lt in Heqb1; done.
+          * apply (IHl H0).
+        + cbn.
+          destruct H.
+          specialize (IHl H0).
+          split; [lia|].
+          split; [lia|].
+          done.
+    Qed.
+
+    Lemma split_list_sorted l n : list_sorted l -> forall x y, In x (take n l) -> In y (drop n l) -> (x <= y)%Z.
+    Proof.
+      clear bpos.
+      revert l.
+      induction n; [intros; rewrite take_0 in H0; cbn in H0; done|].
+      intros l sorted_l x y in_x in_y.
+      destruct l; [rewrite take_nil in in_x; done|].
+      cbn in in_x; fold (@take Z) in in_x;
+        cbn in in_y; fold (@drop Z) in in_y.
+      destruct in_x.
+      - subst.
+        clear IHn.
+        revert dependent n;
+          induction l;
+          intros;
+          [rewrite drop_nil in in_y; done|].
+        assert (list_sorted (x :: l)).
+        { cbn; cbn in sorted_l.
+          destruct l; [done|].
+          destruct sorted_l as [? []].
+          split; [lia|done]. }
+        destruct n.
+        + destruct in_y; [subst; destruct sorted_l; lia|].
+          apply (IHl H 0); rewrite drop_0; done.
+        + cbn in in_y; fold (@drop Z) in in_y.
+          apply (IHl H n in_y).
+      - apply (IHn l); auto.
+        cbn in sorted_l; destruct l; destruct sorted_l; cbn; done.
+    Qed.
+
+    Lemma last_cons_cons {A} : ∀ (x1 x2 : A) (l0 : list A), List.last (x1 :: x2 :: l0) = List.last (x2 :: l0).
+    Proof. clear beven bpos; done. Qed.
+
+    Lemma list_sorted_hd_lt_last l d1 d2 : list_sorted l -> (d1 <= d2)%Z -> (hd d1 l <= List.last l d2)%Z.
+    Proof.
+      clear beven bpos.
+      intro sorted_l.
+      specialize (split_list_sorted l 1 sorted_l (hd d1 l) (List.last l d2)) as ?.
+      destruct l as [|x l]; [cbn; done|].
+      destruct l as [|y l]; [cbn; done|].
+      specialize (H (or_introl eq_refl)).
+      assert (In (List.last (x :: y :: l) d2) (drop 1 (x :: y :: l))).
+      { clear H sorted_l.
+        rewrite last_cons_cons skipn_cons drop_0.
+        destruct (destruct_list_back l) as [[z [init ?]]|]; rewrite e; [|cbn; auto].
+        rewrite app_comm_cons last_last.
+        apply in_or_app.
+        right; cbn; auto. }
+      intro.
+      apply (H H0).
+    Qed.
+
+    Lemma list_sorted_take_sorted l n : list_sorted l -> list_sorted (take n l).
+    Proof.
+      revert l.
+      induction n; [done|].
+      destruct l as [|x l]; [done|].
+      intro sorted_xl.
+      rewrite firstn_cons.
+      destruct l as [|y l]; [rewrite take_nil; done|].
+      destruct n; [done|].
+      rewrite firstn_cons.
+      specialize (IHn (y :: l) (list_sorted_cons _ _ sorted_xl)).
+      rewrite firstn_cons in IHn.
+      destruct sorted_xl.
+      split; done.
+    Qed.
+
+    Lemma list_sorted_drop_sorted l n : list_sorted l -> list_sorted (drop n l).
+      revert l.
+      induction n; intros; [rewrite drop_0; done|].
+      destruct l as [|x l]; [done|].
+      rewrite skipn_cons.
+      apply IHn.
+      apply (list_sorted_cons _ _ H).
+    Qed.
+
+    Lemma root_leaf_wf_split_length interval l target : tree_spec_wf b (root_leaf interval l) -> b <= length (insert_list_spec target l) -> b = length (insert_list_spec target l).
+    Proof using bpos.
+      intros t_wf inserted_length.
+      inversion_clear t_wf as [? ? ? _ _ _ ? _|]; subst.
+      clear beven; revert dependent b.
+      induction l as [|x l]; intros; cbn in inserted_length.
+      - cbn; lia.
+      - cbn.
+        destruct (Z.eqb x target); [lia|].
+        destruct (Z.ltb x target);
+          cbn in inserted_length; cbn in H; cbn;
+          [|lia].
+        specialize (IHl (pred b0));
+          rewrite <- IHl;
+          lia.
+    Qed.
+
+    Definition insert_bplus_tree_wf (target : Z) (t : tree_spec) (t_wf : tree_spec_wf b t) : (tree_spec_wf b (insert_bplus_tree_spec target t)).
+      destruct t as [[low high]|[low high]].
+      - cbn; destruct (Z.leb b (length (insert_list_spec target l))) eqn:Hble.
+        + rewrite Z.leb_le in Hble;
+            assert (b <= length (insert_list_spec target l)) as Hble' by lia.
+          inversion t_wf; subst.
+          specialize (insert_list_sorted _ target H6) as inserted_list_sorted.
+          constructor.
+          * specialize (bge2 b beven bpos) as ?.
+            cbn; lia.
+          * destruct (take_b2_cons' (insert_list_spec target l) Hble') as (thd & trest & Hthdtrest);
+              cbn in Hthdtrest; rewrite Hthdtrest.
+            destruct (drop_b2_snoc' (insert_list_spec target l) Hble') as (dlast & dinit & Hdinitdlast);
+              cbn in Hdinitdlast; rewrite Hdinitdlast.
+            cbn; rewrite last_last.
+            specialize (in_eq thd trest) as ?;
+              specialize (in_elt dlast dinit []) as ?.
+            rewrite <- Hthdtrest in H; rewrite <- Hdinitdlast in H0.
+            specialize (split_list_sorted _ _ inserted_list_sorted _ _ H H0).
+            lia.
+
+          * repeat constructor; try lia.
+            -- destruct (take_b2_snoc' (insert_list_spec target l) Hble') as (tlast & tinit & Htinittlast);
+                 cbn in Htinittlast; rewrite Htinittlast.
+               destruct (drop_b2_snoc' (insert_list_spec target l) Hble') as (dlast & dinit & Hdinitdlast);
+                 cbn in Hdinitdlast; rewrite Hdinitdlast.
+               repeat rewrite last_last.
+               specialize (in_elt tlast tinit []) as ?;
+                 specialize (in_elt dlast dinit []) as ?;
+                 rewrite <- Htinittlast in H;
+                 rewrite <- Hdinitdlast in H0.
+               specialize (split_list_sorted _ _ inserted_list_sorted _ _ H H0);
+                 lia.
+            -- destruct (take_b2_cons' (insert_list_spec target l) Hble') as (thd & trest & Hts);
+                 cbn in Hts; rewrite Hts.
+               destruct (drop_b2_cons' (insert_list_spec target l) Hble') as (dhd & drest & Hds);
+                 cbn in Hds; rewrite Hds.
+               cbn.
+               specialize (in_eq thd trest) as ?;
+                 specialize (in_eq dhd drest) as ?;
+                 rewrite <- Hts in H;
+                 rewrite <- Hds in H0.
+               specialize (split_list_sorted _ _ inserted_list_sorted _ _ H H0);
+                 lia.
+
+          * constructor; [|constructor]; [| |done].
+            -- constructor.
+               ++ specialize (list_sorted_take_sorted _ (b/2) inserted_list_sorted) as ?.
+                  apply list_sorted_hd_lt_last; done.
+               ++ destruct (take (Nat.divmod b 1 0 1).1 (insert_list_spec target l)); done.
+               ++ destruct (destruct_list_back (take (Nat.divmod b 1 0 1).1 (insert_list_spec target l)))
+                    as [[last [init ?]]|];
+                    rewrite e; [repeat rewrite last_last|cbn]; done.
+               ++ assert (b/2 < b) by (apply Nat.div_lt; lia).
+                  assert (b/2 <= length (insert_list_spec target l)) by lia.
+                  rewrite (take_length_le (insert_list_spec target l) (b/2));
+                    [lia|done].
+               ++ apply (list_sorted_take_sorted _ (b/2) inserted_list_sorted).
+            -- constructor.
+               ++ specialize (list_sorted_drop_sorted _ (b/2) inserted_list_sorted) as ?.
+                  apply list_sorted_hd_lt_last; done.
+               ++ destruct (drop (Nat.divmod b 1 0 1).1 (insert_list_spec target l)); done.
+               ++ destruct (destruct_list_back (drop (Nat.divmod b 1 0 1).1 (insert_list_spec target l)))
+                    as [[last [init ?]]|];
+                    rewrite e; [repeat rewrite last_last|cbn]; done.
+               ++ rewrite (drop_length (insert_list_spec target l) (b/2)).
+                  specialize (root_leaf_wf_split_length _ _ target t_wf Hble') as ?.
+                  enough (b/2 + b/2 <= length (insert_list_spec target l) <= b + b/2); [lia|].
+                  rewrite <- H.
+                  rewrite <- Nat.div2_div;
+                    specialize (Zeven_div2 _ beven) as ?;
+                    replace (Nat.div2 b + Nat.div2 b) with (2 * Nat.div2 b) by lia;
+                    rewrite <- nat_N_Z in H0;
+                    rewrite <- N2Z.inj_div2 in H0;
+                    replace (2%Z) with (Z.of_N 2) in H0 by lia;
+                    rewrite <- N2Z.inj_mul in H0;
+                    apply N2Z.inj in H0;
+                    rewrite N.div2_div in H0;
+                    replace (2%N) with (N.of_nat 2) in H0 by lia;
+                    rewrite <- Nat2N.inj_div in H0;
+                    rewrite <- Nat2N.inj_mul in H0;
+                    apply Nat2N.inj in H0;
+                    rewrite H0;
+                    rewrite Nat.div2_double.
+                  lia.
+               ++ apply (list_sorted_drop_sorted _ (b/2) inserted_list_sorted).
+          * cbn; split; auto.
+            destruct (take_b2_snoc' (insert_list_spec target l) Hble') as (tlast & tinit & Hts);
+              cbn in Hts; rewrite Hts.
+            destruct (drop_b2_cons' (insert_list_spec target l) Hble') as (dhd & drest & Hds);
+              cbn in Hds; rewrite Hds.
+            rewrite last_last; cbn.
+            specialize (in_elt tlast tinit []) as ?;
+              specialize (in_eq dhd drest) as ?;
+              rewrite <- Hts in H;
+              rewrite <- Hds in H0.
+            specialize (split_list_sorted _ _ inserted_list_sorted _ _ H H0).
+              lia.
+        + inversion t_wf; subst.
+          specialize (insert_list_sorted _ target H6) as inserted_list_sorted.
+          constructor.
+          * apply (list_sorted_hd_lt_last _ low high inserted_list_sorted H2).
+          * destruct (insert_list_spec target l); done.
+          * destruct (destruct_list_back (insert_list_spec target l))
+              as [[last [init ?]]|];
+              rewrite e; [repeat rewrite last_last|cbn]; done.
+          * rewrite Z.leb_gt in Hble; lia.
+          * done.
+
+      - admit.
+
+    Admitted.
 
 End nary_tree.
 
@@ -928,64 +1227,6 @@ Section bplus_tree.
       destruct n; [lia|exists n; done].
     Qed.
 
-    Lemma take_b2_cons' {A} (l : list A) : b <= length l -> (exists x l', take (b/2) l = x :: l').
-    Proof using beven bpos.
-      intro.
-      assert (1 < 2) by lia.
-      specialize (Nat.div_lt b 2 bpos H0) as b2ltb.
-      specialize (take_length l (b/2)) as take_len.
-      specialize (b2ge1 _ beven bpos) as ?.
-      assert (0 < b/2) by lia.
-      destruct (take (b/2) l);
-        [ rewrite nil_length in take_len; lia | eauto ].
-    Qed.
-
-    Lemma take_b2_cons {A} (l : list A) : b < length l -> (exists x l', take (b/2) l = x :: l').
-    Proof using beven bpos. intros; assert (b <= length l) by lia; apply take_b2_cons'; done. Qed.
-
-    Lemma take_b2_snoc' {A} (l : list A) : b <= length l -> (exists x l', take (b/2) l = l' ++ [x]).
-    Proof using beven bpos.
-      intro.
-      assert (1 < 2) by lia.
-      specialize (Nat.div_lt b 2 bpos H0) as b2ltb.
-      specialize (take_length l (b/2)) as take_len.
-      specialize (b2ge1 _ beven bpos) as ?.
-      assert (0 < b/2) by lia.
-      destruct (destruct_list_back (take (b/2) l)) as [[x [init ?]]|];
-        subst; rewrite e in take_len; rewrite e;
-        [ eauto | rewrite nil_length in take_len; lia ].
-    Qed.
-
-    Lemma take_b2_snoc {A} (l : list A) : b < length l -> (exists x l', take (b/2) l = l' ++ [x]).
-    Proof using beven bpos. intros; assert (b <= length l) by lia; apply take_b2_snoc'; done. Qed.
-
-    Lemma drop_b2_cons' {A} (l : list A) : b <= length l -> (exists x l', drop (b/2) l = x :: l').
-    Proof using bpos.
-      intro.
-      assert (1 < 2) by lia.
-      specialize (Nat.div_lt b 2 bpos H0) as b2ltb.
-      specialize (drop_length l (b/2)) as drop_len.
-      destruct (drop (b/2) l);
-        [ rewrite nil_length in drop_len; lia | eauto ].
-    Qed.
-
-    Lemma drop_b2_cons {A} (l : list A) : b < length l -> (exists x l', drop (b/2) l = x :: l').
-    Proof using beven bpos. intros; assert (b <= length l) by lia; apply drop_b2_cons'; done. Qed.
-
-    Lemma drop_b2_snoc' {A} (l : list A) : b <= length l -> (exists x l', drop (b/2) l = l' ++ [x]).
-    Proof using bpos.
-      intro.
-      assert (1 < 2) by lia.
-      specialize (Nat.div_lt b 2 bpos H0) as b2ltb.
-      specialize (drop_length l (b/2)) as drop_len.
-      destruct (destruct_list_back (drop (b/2) l)) as [[x [init ?]]|];
-        subst; rewrite e in drop_len; rewrite e;
-        [ eauto | rewrite nil_length in drop_len; lia ].
-    Qed.
-
-    Lemma drop_b2_snoc {A} (l : list A) : b < length l -> (exists x l', drop (b/2) l = l' ++ [x]).
-    Proof using bpos. intros; assert (b <= length l) by lia; apply drop_b2_snoc'; done. Qed.
-
     Lemma cons_snoc {A} (l : list A) head tail : l = head :: tail -> exists init last, l = init ++ [last].
     Proof.
       destruct (destruct_list_back l) as [[last [init ?]]|];
@@ -1379,16 +1620,16 @@ Section bplus_tree.
           iPoseProof ((branch_node_split (b/2)) with "Hns0") as "[Hnstake Hnsdrop]";
             iEval (rewrite <- Heqbranch_node_list) in "Hnstake Hnsdrop".
           assert (b < length new_ts) as bltlengthnew_ts by (rewrite bool_decide_eq_true in Heqb0; lia);
-            specialize (take_b2_cons new_ts bltlengthnew_ts) as [tthd [ttrest take_new_ts_cons]];
-            specialize (take_b2_snoc new_ts bltlengthnew_ts) as [ttlast [ttrest' take_new_ts_snoc]];
-            specialize (drop_b2_cons new_ts bltlengthnew_ts) as [dthd [dtrest drop_new_ts_cons]];
-            specialize (drop_b2_snoc new_ts bltlengthnew_ts) as [dtlast [dtrest' drop_new_ts_snoc]];
+            specialize (take_b2_cons b beven bpos new_ts bltlengthnew_ts) as [tthd [ttrest take_new_ts_cons]];
+            specialize (take_b2_snoc b beven bpos new_ts bltlengthnew_ts) as [ttlast [ttrest' take_new_ts_snoc]];
+            specialize (drop_b2_cons b beven bpos new_ts bltlengthnew_ts) as [dthd [dtrest drop_new_ts_cons]];
+            specialize (drop_b2_snoc b bpos new_ts bltlengthnew_ts) as [dtlast [dtrest' drop_new_ts_snoc]];
             clear bltlengthnew_ts.
           assert (b < length ns0) as bltlengthns0 by (rewrite bool_decide_eq_true in Heqb0; lia);
-            specialize (take_b2_cons ns0 bltlengthns0) as [tnhd [tnrest take_ns0_cons]];
-            specialize (take_b2_snoc ns0 bltlengthns0) as [tnlast [tnrest' take_ns0_snoc]];
-            specialize (drop_b2_cons ns0 bltlengthns0) as [dnhd [dnrest drop_ns0_cons]];
-            specialize (drop_b2_snoc ns0 bltlengthns0) as [dnlast [dnrest' drop_ns0_snoc]].
+            specialize (take_b2_cons b beven bpos ns0 bltlengthns0) as [tnhd [tnrest take_ns0_cons]];
+            specialize (take_b2_snoc b beven bpos ns0 bltlengthns0) as [tnlast [tnrest' take_ns0_snoc]];
+            specialize (drop_b2_cons b beven bpos ns0 bltlengthns0) as [dnhd [dnrest drop_ns0_cons]];
+            specialize (drop_b2_snoc b bpos ns0 bltlengthns0) as [dnlast [dnrest' drop_ns0_snoc]].
 
           wp_pures;
             wp_bind (headopt_list _);
@@ -1628,152 +1869,6 @@ Section bplus_tree.
             iSplitL; [iExists ptr, r, (nhd :: nrest); iFrame; done|].
             iRight; done.
     Qed.
-
-    Lemma insert_list_sorted l target : list_sorted l -> list_sorted (insert_list_spec target l).
-    Admitted.
-
-    Lemma split_list_sorted l n : list_sorted l -> forall x y, In x (take n l) -> In y (drop n l) -> (x < y)%Z.
-    Admitted.
-
-    Lemma list_sorted_hd_lt_last l d1 d2 : list_sorted l -> (d1 <= d2)%Z -> (hd d1 l <= List.last l d2)%Z.
-    Admitted.
-
-    Lemma list_sorted_take_sorted l n : list_sorted l -> list_sorted (take n l).
-    Admitted.
-
-    Lemma list_sorted_drop_sorted l n : list_sorted l -> list_sorted (drop n l).
-    Admitted.
-
-    Lemma root_leaf_wf_split_length interval l target : tree_spec_wf b (root_leaf interval l) -> b <= length (insert_list_spec target l) -> b = length (insert_list_spec target l).
-    Proof using bpos.
-      intros t_wf inserted_length.
-      inversion_clear t_wf as [? ? ? _ _ _ ? _|]; subst.
-      clear beven;
-        revert dependent b.
-      induction l as [|x l]; intros; cbn in inserted_length.
-      - cbn; lia.
-      - cbn.
-        destruct (Z.eqb x target); [lia|].
-        destruct (Z.ltb x target);
-          cbn in inserted_length; cbn in H; cbn;
-          [|lia].
-        specialize (IHl (pred b0));
-          rewrite <- IHl;
-          lia.
-    Qed.
-
-    Definition insert_bplus_tree_wf (target : Z) (t : tree_spec) (t_wf : tree_spec_wf b t) : (tree_spec_wf b (insert_bplus_tree_spec b target t)).
-      destruct t as [[low high]|[low high]].
-      - cbn; destruct (Z.leb b (length (insert_list_spec target l))) eqn:Hble.
-        + rewrite Z.leb_le in Hble;
-            assert (b <= length (insert_list_spec target l)) as Hble' by lia.
-          inversion t_wf; subst.
-          specialize (insert_list_sorted _ target H6) as inserted_list_sorted.
-          constructor.
-          * specialize bge2 as ?.
-            cbn; lia.
-          * destruct (take_b2_cons' (insert_list_spec target l) Hble') as (thd & trest & Hthdtrest);
-              cbn in Hthdtrest; rewrite Hthdtrest.
-            destruct (drop_b2_snoc' (insert_list_spec target l) Hble') as (dlast & dinit & Hdinitdlast);
-              cbn in Hdinitdlast; rewrite Hdinitdlast.
-            cbn; rewrite last_last.
-            specialize (in_eq thd trest) as ?;
-              specialize (in_elt dlast dinit []) as ?.
-            rewrite <- Hthdtrest in H; rewrite <- Hdinitdlast in H0.
-            specialize (split_list_sorted _ _ inserted_list_sorted _ _ H H0).
-            lia.
-
-          * repeat constructor; try lia.
-            -- destruct (take_b2_snoc' (insert_list_spec target l) Hble') as (tlast & tinit & Htinittlast);
-                 cbn in Htinittlast; rewrite Htinittlast.
-               destruct (drop_b2_snoc' (insert_list_spec target l) Hble') as (dlast & dinit & Hdinitdlast);
-                 cbn in Hdinitdlast; rewrite Hdinitdlast.
-               repeat rewrite last_last.
-               specialize (in_elt tlast tinit []) as ?;
-                 specialize (in_elt dlast dinit []) as ?;
-                 rewrite <- Htinittlast in H;
-                 rewrite <- Hdinitdlast in H0.
-               specialize (split_list_sorted _ _ inserted_list_sorted _ _ H H0);
-                 lia.
-            -- destruct (take_b2_cons' (insert_list_spec target l) Hble') as (thd & trest & Hts);
-                 cbn in Hts; rewrite Hts.
-               destruct (drop_b2_cons' (insert_list_spec target l) Hble') as (dhd & drest & Hds);
-                 cbn in Hds; rewrite Hds.
-               cbn.
-               specialize (in_eq thd trest) as ?;
-                 specialize (in_eq dhd drest) as ?;
-                 rewrite <- Hts in H;
-                 rewrite <- Hds in H0.
-               specialize (split_list_sorted _ _ inserted_list_sorted _ _ H H0);
-                 lia.
-
-          * constructor; [|constructor]; [| |done].
-            -- constructor.
-               ++ specialize (list_sorted_take_sorted _ (b/2) inserted_list_sorted) as ?.
-                  apply list_sorted_hd_lt_last; done.
-               ++ destruct (take (Nat.divmod b 1 0 1).1 (insert_list_spec target l)); done.
-               ++ destruct (destruct_list_back (take (Nat.divmod b 1 0 1).1 (insert_list_spec target l)))
-                    as [[last [init ?]]|];
-                    rewrite e; [repeat rewrite last_last|cbn]; done.
-               ++ assert (b/2 < b) by (apply Nat.div_lt; lia).
-                  assert (b/2 <= length (insert_list_spec target l)) by lia.
-                  rewrite (take_length_le (insert_list_spec target l) (b/2));
-                    [lia|done].
-               ++ apply (list_sorted_take_sorted _ (b/2) inserted_list_sorted).
-            -- constructor.
-               ++ specialize (list_sorted_drop_sorted _ (b/2) inserted_list_sorted) as ?.
-                  apply list_sorted_hd_lt_last; done.
-               ++ destruct (drop (Nat.divmod b 1 0 1).1 (insert_list_spec target l)); done.
-               ++ destruct (destruct_list_back (drop (Nat.divmod b 1 0 1).1 (insert_list_spec target l)))
-                    as [[last [init ?]]|];
-                    rewrite e; [repeat rewrite last_last|cbn]; done.
-               ++ rewrite (drop_length (insert_list_spec target l) (b/2)).
-                  specialize (root_leaf_wf_split_length _ _ target t_wf Hble') as ?.
-                  enough (b/2 + b/2 <= length (insert_list_spec target l) <= b + b/2); [lia|].
-                  rewrite <- H.
-                  rewrite <- Nat.div2_div;
-                    specialize (Zeven_div2 _ beven) as ?;
-                    replace (Nat.div2 b + Nat.div2 b) with (2 * Nat.div2 b) by lia;
-                    rewrite <- nat_N_Z in H0;
-                    rewrite <- N2Z.inj_div2 in H0;
-                    replace (2%Z) with (Z.of_N 2) in H0 by lia;
-                    rewrite <- N2Z.inj_mul in H0;
-                    apply N2Z.inj in H0;
-                    rewrite N.div2_div in H0;
-                    replace (2%N) with (N.of_nat 2) in H0 by lia;
-                    rewrite <- Nat2N.inj_div in H0;
-                    rewrite <- Nat2N.inj_mul in H0;
-                    apply Nat2N.inj in H0;
-                    rewrite H0;
-                    rewrite Nat.div2_double.
-                  lia.
-               ++ apply (list_sorted_drop_sorted _ (b/2) inserted_list_sorted).
-          * cbn; split; auto.
-            destruct (take_b2_snoc' (insert_list_spec target l) Hble') as (tlast & tinit & Hts);
-              cbn in Hts; rewrite Hts.
-            destruct (drop_b2_cons' (insert_list_spec target l) Hble') as (dhd & drest & Hds);
-              cbn in Hds; rewrite Hds.
-            rewrite last_last; cbn.
-            specialize (in_elt tlast tinit []) as ?;
-              specialize (in_eq dhd drest) as ?;
-              rewrite <- Hts in H;
-              rewrite <- Hds in H0.
-            specialize (split_list_sorted _ _ inserted_list_sorted _ _ H H0);
-              lia.
-        + inversion t_wf; subst.
-          specialize (insert_list_sorted _ target H6) as inserted_list_sorted.
-          constructor.
-          * apply (list_sorted_hd_lt_last _ low high inserted_list_sorted H2).
-          * destruct (insert_list_spec target l); done.
-          * destruct (destruct_list_back (insert_list_spec target l))
-              as [[last [init ?]]|];
-              rewrite e; [repeat rewrite last_last|cbn]; done.
-          * rewrite Z.leb_gt in Hble; lia.
-          * done.
-
-      - admit.
-
-    Admitted.
 
     Definition is_bplus_tree_no_wf (v : val) (t : tree_spec) :=
       match t with
@@ -2156,16 +2251,16 @@ Section bplus_tree.
           iPoseProof ((branch_node_split (b/2)) with "Hns0") as "[Hnstake Hnsdrop]";
             iEval (rewrite <- Heqbranch_node_list) in "Hnstake Hnsdrop".
           assert (b < length new_ts) as bltlengthnew_ts by (rewrite bool_decide_eq_true in Heqb0; lia);
-            specialize (take_b2_cons new_ts bltlengthnew_ts) as [tthd [ttrest take_new_ts_cons]];
-            specialize (take_b2_snoc new_ts bltlengthnew_ts) as [ttlast [ttrest' take_new_ts_snoc]];
-            specialize (drop_b2_cons new_ts bltlengthnew_ts) as [dthd [dtrest drop_new_ts_cons]];
-            specialize (drop_b2_snoc new_ts bltlengthnew_ts) as [dtlast [dtrest' drop_new_ts_snoc]];
+            specialize (take_b2_cons b beven bpos new_ts bltlengthnew_ts) as [tthd [ttrest take_new_ts_cons]];
+            specialize (take_b2_snoc b beven bpos new_ts bltlengthnew_ts) as [ttlast [ttrest' take_new_ts_snoc]];
+            specialize (drop_b2_cons b beven bpos new_ts bltlengthnew_ts) as [dthd [dtrest drop_new_ts_cons]];
+            specialize (drop_b2_snoc b bpos new_ts bltlengthnew_ts) as [dtlast [dtrest' drop_new_ts_snoc]];
             clear bltlengthnew_ts.
           assert (b < length ns0) as bltlengthns0 by (rewrite bool_decide_eq_true in Heqb0; lia);
-            specialize (take_b2_cons ns0 bltlengthns0) as [tnhd [tnrest take_ns0_cons]];
-            specialize (take_b2_snoc ns0 bltlengthns0) as [tnlast [tnrest' take_ns0_snoc]];
-            specialize (drop_b2_cons ns0 bltlengthns0) as [dnhd [dnrest drop_ns0_cons]];
-            specialize (drop_b2_snoc ns0 bltlengthns0) as [dnlast [dnrest' drop_ns0_snoc]].
+            specialize (take_b2_cons b beven bpos ns0 bltlengthns0) as [tnhd [tnrest take_ns0_cons]];
+            specialize (take_b2_snoc b beven bpos ns0 bltlengthns0) as [tnlast [tnrest' take_ns0_snoc]];
+            specialize (drop_b2_cons b beven bpos ns0 bltlengthns0) as [dnhd [dnrest drop_ns0_cons]];
+            specialize (drop_b2_snoc b bpos ns0 bltlengthns0) as [dnlast [dnrest' drop_ns0_snoc]].
 
           wp_pures;
             wp_bind (headopt_list _);
@@ -2406,7 +2501,7 @@ Section bplus_tree.
     Theorem insert_bplus_tree_spec_proof (t : tree_spec) (t_wf : tree_spec_wf b t) (v : val) (target : tval) :
       {{{ is_bplus_tree b v t t_wf }}}
         insert_bplus_tree b (v, #target)%V
-        {{{ r, RET r; is_bplus_tree b r (insert_bplus_tree_spec b target t) (insert_bplus_tree_wf target t t_wf) }}}.
+        {{{ r, RET r; is_bplus_tree b r (insert_bplus_tree_spec b target t) (insert_bplus_tree_wf b beven bpos target t t_wf) }}}.
     Proof.
       iIntros (Φ) "Hv HPost".
       iApply (insert_bplus_tree_spec_proof_no_wf with "Hv").
