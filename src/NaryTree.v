@@ -21,10 +21,10 @@ Section nary_tree.
     | node interval trees =>
         Pnode interval trees
           ((fix nary_tree_ind_aux (l : list nary_tree) : Forall P l :=
-             match l with
-             | [] => Forall_nil_2 P
-             | t :: ts => Forall_cons_2 _ _ _ (nary_tree_ind' P Pleaf Pnode t) (nary_tree_ind_aux ts)
-             end) trees)
+              match l with
+              | [] => Forall_nil_2 P
+              | t :: ts => Forall_cons_2 _ _ _ (nary_tree_ind' P Pleaf Pnode t) (nary_tree_ind_aux ts)
+              end) trees)
     end.
 
   Fixpoint list_sorted (l : list Z) :=
@@ -36,115 +36,106 @@ Section nary_tree.
         | y :: _ => Z.lt x y /\ list_sorted l
         end
     end.
+
+  Definition nary_tree_interval t : (Z * Z) :=
+    match t with
+    | leaf i _ => i
+    | node i _ => i
+    end.
   
   Inductive nary_tree_wf : nary_tree -> Prop :=
-    | leaf_wf low high vals :
-        Z.le low high ->
-          hd low vals = low ->
-          List.last vals high = high ->
-          b / 2 <= length vals <= b ->
-          list_sorted vals ->
-          nary_tree_wf (leaf (low, high) vals)
-    | node_wf low high trees :
-        let intervals :=
-          map (fun t =>
-                 match t with
-                 | leaf (low', high') _
-                 | node (low', high') _ => (low', high')
-                 end)
-            trees
-        in
-        b / 2 <= length trees <= b ->
-        Z.le low high ->
-        Forall (fun (interval : Z * Z) =>
-                  let (low', high') := interval in
-                  Z.le low low' /\ Z.le high' high)
-          intervals ->
-        Forall nary_tree_wf trees ->
-        (fix intervals_sorted (l : list (Z * Z)) : Prop :=
-           match l with
+  | leaf_wf low high vals :
+    Z.le low high ->
+    hd low vals = low ->
+    List.last vals high = high ->
+    b / 2 <= length vals <= b ->
+    list_sorted vals ->
+    nary_tree_wf (leaf (low, high) vals)
+  | node_wf low high trees :
+    let intervals := map nary_tree_interval trees in
+    b / 2 <= length trees <= b ->
+    Z.le low high ->
+    Forall (fun (interval : Z * Z) =>
+              let (low', high') := interval in
+              Z.le low low' /\ Z.le high' high)
+      intervals ->
+    Forall nary_tree_wf trees ->
+    (fix intervals_sorted (l : list (Z * Z)) : Prop :=
+       match l with
+       | [] => True
+       | (_, high') :: rest =>
+           match rest with
            | [] => True
-           | (_, high') :: rest =>
-               match rest with
-               | [] => True
-               | (low', high'') :: rest' =>
-                   Z.lt high' low'
-               end /\ intervals_sorted rest
-           end) intervals ->
-        nary_tree_wf (node (low, high) trees).
+           | (low', high'') :: rest' =>
+               Z.lt high' low'
+           end /\ intervals_sorted rest
+       end) intervals ->
+    nary_tree_wf (node (low, high) trees).
 
   Inductive nary_tree_wf_no_len : nary_tree -> Prop :=
-    | leaf_wf_nl low high vals :
-        Z.le low high ->
-          hd low vals = low ->
-          List.last vals high = high ->
-          list_sorted vals ->
-          nary_tree_wf_no_len (leaf (low, high) vals)
-    | node_wf_nl low high trees :
-        let intervals :=
-          map (fun t =>
-                 match t with
-                 | leaf (low', high') _
-                 | node (low', high') _ => (low', high')
-                 end)
-            trees
-        in
-        Z.le low high ->
-        Forall (fun (interval : Z * Z) =>
-                  let (low', high') := interval in
-                  Z.le low low' /\ Z.le high' high)
-          intervals ->
-        Forall nary_tree_wf trees ->
-        (fix intervals_sorted (l : list (Z * Z)) : Prop :=
-           match l with
+  | leaf_wf_nl low high vals :
+    Z.le low high ->
+    hd low vals = low ->
+    List.last vals high = high ->
+    list_sorted vals ->
+    nary_tree_wf_no_len (leaf (low, high) vals)
+  | node_wf_nl low high trees :
+    let intervals := map nary_tree_interval trees in
+    Z.le low high ->
+    Forall (fun (interval : Z * Z) =>
+              let (low', high') := interval in
+              Z.le low low' /\ Z.le high' high)
+      intervals ->
+    Forall nary_tree_wf_no_len trees ->
+    (fix intervals_sorted (l : list (Z * Z)) : Prop :=
+       match l with
+       | [] => True
+       | (_, high') :: rest =>
+           match rest with
            | [] => True
-           | (_, high') :: rest =>
-               match rest with
-               | [] => True
-               | (low', high'') :: rest' =>
-                   Z.lt high' low'
-               end /\ intervals_sorted rest
-           end) intervals ->
-        nary_tree_wf_no_len (node (low, high) trees).
+           | (low', high'') :: rest' =>
+               Z.lt high' low'
+           end /\ intervals_sorted rest
+       end) intervals ->
+    nary_tree_wf_no_len (node (low, high) trees).
 
   Lemma nary_tree_wf_remove_len t (t_wf : nary_tree_wf t) : (nary_tree_wf_no_len t).
-  Proof. destruct t; inversion t_wf; subst; constructor; done. Qed.
+  Proof.
+    induction t using nary_tree_ind'; inversion t_wf; subst; constructor; try done.
+    clear H2 H3 H4 H6 intervals t_wf.
+    induction trees; [done|].
+    apply Forall_cons in H, H5; destruct H, H5.
+    constructor; auto.
+  Qed.
 
   Inductive bplus_tree_wf : bplus_tree -> Prop :=
-    | root_leaf_wf low high vals :
-        Z.le low high ->
-          hd low vals = low ->
-          List.last vals high = high ->
-          0 <= length vals <= b - 1 ->
-          list_sorted vals ->
-          bplus_tree_wf (root_leaf (low, high) vals)
-    | root_node_wf low high trees :
-        let intervals :=
-          map (fun t =>
-                 match t with
-                 | leaf (low', high') _
-                 | node (low', high') _ => (low', high')
-                 end)
-            trees
-        in
-        2 <= length trees <= b ->
-        Z.le low high ->
-        Forall (fun (interval : Z * Z) =>
-                  let (low', high') := interval in
-                  Z.le low low' /\ Z.le high' high)
-          intervals ->
-        Forall nary_tree_wf trees ->
-        (fix intervals_sorted (l : list (Z * Z)) : Prop :=
-           match l with
+  | root_leaf_wf low high vals :
+    Z.le low high ->
+    hd low vals = low ->
+    List.last vals high = high ->
+    0 <= length vals <= b - 1 ->
+    list_sorted vals ->
+    bplus_tree_wf (root_leaf (low, high) vals)
+  | root_node_wf low high trees :
+    let intervals := map nary_tree_interval trees in
+    2 <= length trees <= b ->
+    Z.le low high ->
+    Forall (fun (interval : Z * Z) =>
+              let (low', high') := interval in
+              Z.le low low' /\ Z.le high' high)
+      intervals ->
+    Forall nary_tree_wf trees ->
+    (fix intervals_sorted (l : list (Z * Z)) : Prop :=
+       match l with
+       | [] => True
+       | (_, high') :: rest =>
+           match rest with
            | [] => True
-           | (_, high') :: rest =>
-               match rest with
-               | [] => True
-               | (low', high'') :: rest' =>
-                   Z.lt high' low'
-               end /\ intervals_sorted rest
-           end) intervals ->
-        bplus_tree_wf (root_node (low, high) trees).
+           | (low', high'') :: rest' =>
+               Z.lt high' low'
+           end /\ intervals_sorted rest
+       end) intervals ->
+    bplus_tree_wf (root_node (low, high) trees).
 
   Lemma destruct_list_back {A} : forall (l : list A), {x:A & {init:list A | l = init ++ [x] }}+{l = [] }.
   Proof.
@@ -160,12 +151,6 @@ Section nary_tree.
         exists a, [].
         done.
   Qed.
-
-  Definition nary_tree_interval t : (Z * Z) :=
-    match t with
-    | leaf i _ => i
-    | node i _ => i
-    end.
 
   Fixpoint size (t : nary_tree) : nat :=
     match t with
@@ -282,18 +267,16 @@ Section nary_tree.
     end.
 
   Lemma target_above_below_not_in_node target t:
-    nary_tree_wf t ->
+    nary_tree_wf_no_len t ->
     (Z.lt target (fst (nary_tree_interval t)) \/ Z.lt (snd (nary_tree_interval t)) target) ->
     In_nary_tree target t = false.
   Proof.
     intros t_wf ord_target_low_high.
-    specialize (nary_tree_wf_remove_len _ t_wf) as t_wf'.
-    clear t_wf.
 
     induction t as [? | interval trees IH] using nary_tree_ind';
       destruct interval as [low high];
       cbn in ord_target_low_high.
-    - inversion t_wf'.
+    - inversion t_wf.
       destruct ord_target_low_high as [ord_target_low | ord_high_target];
         [ apply (target_below_not_in_list _ low) | apply (target_above_not_in_list _ high)];
         done.
@@ -301,15 +284,16 @@ Section nary_tree.
       induction trees as [|t trees]; [done|].
       replace (In_nary_tree target t) with false.
       2:{ apply Forall_cons in IH.
-          inversion_clear t_wf' as [|? ? ? ? _ intervals_in_interval trees_wf _].
+          inversion_clear t_wf as [|? ? ? ? _ intervals_in_interval trees_wf _].
           apply Forall_cons in trees_wf.
           destruct trees_wf.
           symmetry.
-          apply (proj1 IH); [|apply nary_tree_wf_remove_len; done].
+          apply (proj1 IH); [done|].
           apply Forall_cons in intervals_in_interval.
-          destruct intervals_in_interval.
           destruct t;
             destruct interval as [low' high'];
+            cbn in intervals_in_interval;
+            destruct intervals_in_interval;
             cbn;
             lia. }
 
@@ -318,7 +302,7 @@ Section nary_tree.
       + apply Forall_cons in IH.
         destruct IH.
         done.
-      + inversion_clear t_wf' as [|? ? ? ? ? intervals_in_interval trees_wf intervals_sorted].
+      + inversion_clear t_wf as [|? ? ? ? ? intervals_in_interval trees_wf intervals_sorted].
         apply Forall_cons in trees_wf.
         destruct trees_wf.
         apply Forall_cons in intervals_in_interval.
@@ -331,15 +315,8 @@ Section nary_tree.
   Qed.
 
   Lemma nary_tree_in_interval_not_in_others target branch branches :
-    let intervals :=
-      map (fun t =>
-             match t with
-             | leaf (low', high') _
-             | node (low', high') _ => (low', high')
-             end)
-        (branch :: branches)
-    in
-    Forall nary_tree_wf (branch :: branches) ->
+    let intervals := map nary_tree_interval (branch :: branches) in
+    Forall nary_tree_wf_no_len (branch :: branches) ->
     (fix intervals_sorted (l : list (Z * Z)) : Prop :=
        match l with
        | [] => True
@@ -379,9 +356,9 @@ Section nary_tree.
           destruct intervals_sorted as (? & ? & ?).
           split; [|done].
           destruct branches; [done|].
-          cbn in H2; cbn.
           destruct n;
             destruct interval;
+            cbn in H2, H3; cbn;
             lia. }
       rewrite H1.
       clear H1 IHbranches.
@@ -411,9 +388,9 @@ Section nary_tree.
           destruct intervals_sorted as (? & ? & ?).
           split; [|done].
           destruct branches; [done|].
-          cbn in H2; cbn.
           destruct n;
             destruct interval;
+            cbn in H2, H3; cbn;
             lia. }
       rewrite H1.
       clear H1 IHbranches.
@@ -428,7 +405,7 @@ Section nary_tree.
       apply (target_above_below_not_in_node); [|left]; done.
 
     - destruct interval as (low & high), interval0 as (low' & high').
-      inversion_clear wf_branch' as [? ? ? ordeq_low'_high' hd_vals_low' last_vals_high' _ sorted_vals |].
+      inversion_clear wf_branch' as [? ? ? ordeq_low'_high' hd_vals_low' last_vals_high' sorted_vals |].
 
       assert ((fix In_aux (l : list nary_tree) : bool :=
                  match l with
@@ -443,9 +420,9 @@ Section nary_tree.
           destruct intervals_sorted as (? & ? & ?).
           split; [|done].
           destruct branches; [done|].
-          cbn in H2; cbn.
           destruct n;
             destruct interval;
+            cbn in H2, H3; cbn;
             lia. }
       rewrite not_in_branches.
       rewrite orb_false_r.
@@ -473,9 +450,9 @@ Section nary_tree.
           destruct intervals_sorted as (? & ? & ?).
           split; [|done].
           destruct branches; [done|].
-          cbn in H2; cbn.
           destruct n;
             destruct interval;
+            cbn in H2, H3; cbn;
             lia. }
       rewrite H1.
       clear H1 IHbranches.

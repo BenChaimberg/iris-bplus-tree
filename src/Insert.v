@@ -46,7 +46,7 @@ Section nary_tree.
                     end
                 | t :: ts =>
                     let (low, high) := nary_tree_interval t in
-                    if andb (Z.leb low target) (Z.leb target high)
+                    if Z.leb target high
                     then let (new_t1, new_t2) := insert_nary_tree_spec target t in
                          match new_t2 with
                          | None => new_t1 :: ts
@@ -127,7 +127,7 @@ Section nary_tree.
                     end
                 | t :: ts =>
                     let (low, high) := nary_tree_interval t in
-                    if andb (Z.leb low target) (Z.leb target high)
+                    if Z.leb target high
                     then let (new_t1, new_t2) := insert_nary_tree_spec target t in
                          match new_t2 with
                          | None => new_t1 :: ts
@@ -271,7 +271,7 @@ Section nary_tree.
           done.
     Qed.
 
-    Lemma split_list_sorted l n : list_sorted l -> forall x y, In x (take n l) -> In y (drop n l) -> (x <= y)%Z.
+    Lemma split_list_sorted l n : list_sorted l -> forall x y, In x (take n l) -> In y (drop n l) -> (x < y)%Z.
     Proof.
       clear bpos.
       revert l.
@@ -319,8 +319,7 @@ Section nary_tree.
         rewrite app_comm_cons last_last.
         apply in_or_app.
         right; cbn; auto. }
-      intro.
-      apply (H H0).
+      specialize (H H0); lia.
     Qed.
 
     Lemma list_sorted_take_sorted l n : list_sorted l -> list_sorted (take n l).
@@ -340,6 +339,7 @@ Section nary_tree.
     Qed.
 
     Lemma list_sorted_drop_sorted l n : list_sorted l -> list_sorted (drop n l).
+    Proof.
       revert l.
       induction n; intros; [rewrite drop_0; done|].
       destruct l as [|x l]; [done|].
@@ -365,8 +365,465 @@ Section nary_tree.
           lia.
     Qed.
 
+    Lemma hd_map_comm {A B} (f : A -> B) (l : list A) (d : A) (fd : B) :
+      fd = f d -> hd (fd) (map f l) = f (hd d l).
+    Proof. destruct l; [done|auto]. Qed.
+
+    Lemma head_map_comm {A B} (f : A -> B) (l : list A) :
+      head (map f l) = match head l with None => None | Some x => Some (f x) end.
+    Proof. destruct l; [done|auto]. Qed.
+
+    Lemma Listlast_map_comm {A B} (f : A -> B) (l : list A) (d : A) (fd : B) :
+      fd = f d -> List.last (map f l) fd = f (List.last l d).
+    Proof.
+      induction l; [done|].
+      destruct l; [auto|done].
+    Qed.
+
+    Lemma last_map_comm {A B} (f : A -> B) (l : list A) :
+      last (map f l) = match last l with None => None | Some x => Some (f x) end.
+    Proof.
+      induction l; [done|].
+      destruct l; [auto|done].
+    Qed.
+
+    Lemma insert_list_hd (target : Z) (l : list Z) d :
+      let new_l := insert_list_spec target l in
+      hd d new_l = hd d l \/ hd d new_l = target.
+    Proof.
+      destruct l; cbn; [auto|].
+      destruct (z =? target)%Z; [cbn; auto|].
+      destruct (z <? target)%Z; cbn; auto.
+    Qed.
+
+    Lemma inserted_list_cons target l : exists x rest, insert_list_spec target l = x :: rest.
+    Proof.
+      destruct l; cbn; [eauto|].
+      destruct (z =? target)%Z; cbn; [eauto|].
+      destruct (z <? target)%Z; cbn; eauto.
+    Qed.
+
+    Lemma insert_list_last (target : Z) (l : list Z) d :
+      let new_l := insert_list_spec target l in
+      List.last new_l d = List.last l d \/ List.last new_l d = target.
+    Proof.
+      destruct (destruct_list_back l) as [[z [init ?]]|]; rewrite e; [|cbn; auto]; clear e.
+      rewrite last_last.
+      induction init as [|z' mid]; cbn.
+      - destruct (z =? target)%Z; cbn; [auto|].
+        destruct (z <? target)%Z; cbn; auto.
+      - destruct (z' =? target)%Z; [rewrite app_comm_cons; rewrite last_last; auto|].
+        destruct (z' <? target)%Z.
+        + cbn. destruct IHmid; rewrite H;
+            destruct (inserted_list_cons target (mid ++ [z])) as [? [? ->]]; auto.
+        + repeat rewrite app_comm_cons; rewrite last_last; auto.
+    Qed.
+
+    Lemma take_cons {A} (l : list A) n x rest : 1 <= n -> take n l = x :: rest -> exists rest', l = x :: rest'.
+    Proof.
+      intros nge1 Htake.
+      destruct l; [rewrite take_nil in Htake; discriminate|].
+      exists l.
+      destruct n; [done|].
+      rewrite firstn_cons in Htake.
+      congruence.
+    Qed.
+
+    Lemma snoc_eq {A} (l l' : list A) x y : l ++ [x] = l' ++ [y] -> x = y.
+    Proof.
+      revert l'.
+      induction l; destruct l'; cbn; intros; auto.
+      - congruence.
+      - inversion H; apply app_cons_not_nil in H2; done.
+      - inversion H; apply app_eq_nil in H2; destruct H2; done.
+      - inversion H; apply (IHl l'); done.
+    Qed.
+
+    Lemma drop_snoc {A} (l : list A) n x init : 1 <= n -> drop n l = init ++ [x] -> exists init', l = init' ++ [x].
+    Proof.
+      clear bpos.
+      intros nge1 Hdrop.
+      destruct (destruct_list_back l) as [[z [init' ?]]|]; rewrite e;  rewrite e in Hdrop.
+      2:{ rewrite drop_nil in Hdrop.
+          specialize (app_cons_not_nil init [] x) as ?.
+          contradiction. }
+      exists init'.
+      apply app_inv_head_iff.
+      assert (n <= length init').
+      { clear nge1 e; revert dependent n.
+        induction init'.
+        - cbn; destruct n; [done|].
+          rewrite skipn_cons; rewrite drop_nil.
+          intros.
+          apply app_cons_not_nil in Hdrop; done.
+        - intros.
+          destruct n; [cbn; lia|].
+          rewrite skipn_cons in Hdrop.
+          apply IHinit' in Hdrop.
+          cbn; lia. }
+      rewrite drop_app_le in Hdrop; [|done].
+      apply snoc_eq in Hdrop; congruence.
+    Qed.
+
+    Lemma is_sorted_hd_last_contra x l : list_sorted (x :: l ++ [x]) -> False.
+    Proof.
+      clear bpos.
+      intros.
+      induction l.
+      - cbn in H; lia.
+      - apply IHl.
+        destruct H.
+        cbn; cbn in H0.
+        destruct (l ++ [x]); auto.
+        destruct H0.
+        split; [lia|done].
+    Qed.
+
+    Lemma insert_list_hd_last_same_single (target : Z) (l : list Z) d d' :
+      let new_l := insert_list_spec target l in
+      list_sorted (insert_list_spec target l) ->
+      hd d new_l = target -> List.last new_l d' = target ->
+      new_l = [target].
+    Proof.
+      intros ? sorted_l hd_target last_target.
+      destruct l; auto.
+      destruct (destruct_list_back l) as [[z' [init' ?]]|]; subst l.
+      - cbn in new_l, sorted_l;
+          destruct (z =? target)%Z eqn:?, (z <? target)%Z eqn:?;
+          subst new_l;
+          cbn in hd_target.
+        + rewrite app_comm_cons in last_target;
+            rewrite last_last in last_target;
+            rewrite hd_target last_target in sorted_l.
+          apply is_sorted_hd_last_contra in sorted_l;
+            contradiction.
+        + rewrite app_comm_cons in last_target;
+            rewrite last_last in last_target;
+            rewrite hd_target last_target in sorted_l.
+          apply is_sorted_hd_last_contra in sorted_l;
+            contradiction.
+        + rewrite Z.eqb_neq in Heqb0;
+            congruence.
+        + repeat rewrite app_comm_cons in last_target;
+            rewrite last_last in last_target;
+            rewrite last_target in sorted_l.
+          rewrite app_comm_cons in sorted_l;
+            apply is_sorted_hd_last_contra in sorted_l;
+            contradiction.
+      - cbn in new_l;
+          destruct (z =? target)%Z eqn:?, (z <? target)%Z;
+          cbn in hd_target, last_target;
+          subst;
+          auto;
+          rewrite Z.eqb_neq in Heqb0;
+          contradiction.
+    Qed.
+
+    Lemma insert_nary_tree_interval_Some (target : Z) (t : nary_tree) (t_wf : nary_tree_wf_no_len t) :
+      let old_interval := nary_tree_interval t in
+      let (new_tree_left, new_tree_right_opt) := insert_nary_tree_spec target t in
+      forall new_tree_right, Some new_tree_right = new_tree_right_opt ->
+      let new_interval_left := nary_tree_interval new_tree_left in
+      let new_interval_right := nary_tree_interval new_tree_right in
+      (new_interval_left.1 = old_interval.1 /\ new_interval_right.2 = old_interval.2)
+      \/ (new_interval_left.1 = target /\ (target < old_interval.1)%Z /\ new_interval_right.2 = old_interval.2)
+      \/ (new_interval_left.1 = old_interval.1 /\ (old_interval.2 < target)%Z /\ new_interval_right.2 = target).
+    Proof.
+    Admitted.
+
+    Lemma insert_nary_tree_interval_None (target : Z) (t : nary_tree) (t_wf : nary_tree_wf_no_len t) :
+      let old_interval := nary_tree_interval t in
+      let (new_tree_left, new_tree_right_opt) := insert_nary_tree_spec target t in
+      None = new_tree_right_opt ->
+      let new_interval := nary_tree_interval new_tree_left in
+      (new_interval.1 = old_interval.1 /\ new_interval.2 = old_interval.2)
+      \/ (new_interval.1 = target /\ (target < old_interval.1)%Z /\ new_interval.2 = old_interval.2)
+      \/ (new_interval.1 = old_interval.1 /\ (old_interval.2 < target)%Z /\ new_interval.2 = target).
+    Admitted.
+
+    Lemma insert_nary_tree_interval_list (target : Z) (ts : list nary_tree) (ts_wf : Forall nary_tree_wf_no_len ts) low high :
+      let new_ts := (fix insert_aux (l : list nary_tree) : list nary_tree :=
+                       match l with
+                       | [] => []
+                       | [t] =>
+                           let (new_t1, new_t2) := insert_nary_tree_spec target t in
+                           match new_t2 with
+                           | Some new_t2' => [new_t1; new_t2']
+                           | None => [new_t1]
+                           end
+                       | t :: (_ :: _) as ts0 =>
+                           let (low0, high0) := nary_tree_interval t in
+                           if (target <=? high0)%Z
+                           then
+                             let (new_t1, new_t2) := insert_nary_tree_spec target t in
+                             match new_t2 with
+                             | Some new_t2' => new_t1 :: new_t2' :: ts0
+                             | None => new_t1 :: ts0
+                             end
+                           else t :: insert_aux ts0
+                       end) ts in
+      let old_interval :=
+        ((match head (map fst (map nary_tree_interval ts)) with None => low | Some x => x end),
+          (match last (map snd (map nary_tree_interval ts)) with None => high | Some x => x end))
+      in
+      let new_interval :=
+        ((match head (map fst (map nary_tree_interval new_ts)) with None => low | Some x => x end),
+          (match last (map snd (map nary_tree_interval new_ts)) with None => high | Some x => x end))
+      in
+      (new_interval.1 = old_interval.1 /\ new_interval.2 = old_interval.2) \/
+        (new_interval.1 = target /\ (target < old_interval.1)%Z /\ new_interval.2 = old_interval.2) \/
+        (new_interval.1 = old_interval.1 /\ (old_interval.2 < target)%Z /\ new_interval.2 = target).
+    Admitted.
+    Lemma insert_nary_tree_interval_Some_inside (target : Z) (t : nary_tree) (t_wf : nary_tree_wf_no_len t) :
+      let old_interval := nary_tree_interval t in
+      let (new_tree_left, new_tree_right_opt) := insert_nary_tree_spec target t in
+      forall new_tree_right, Some new_tree_right = new_tree_right_opt ->
+      let new_interval_left := nary_tree_interval new_tree_left in
+      let new_interval_right := nary_tree_interval new_tree_right in
+      (new_interval_left.2 < new_interval_right.1)%Z.
+    Admitted.
+
+    Definition insert_nary_tree_wf_no_len (target : Z) (t : nary_tree) (t_wf : nary_tree_wf_no_len t) : nary_tree_wf_no_len (insert_nary_tree_spec target t).1 /\ match (insert_nary_tree_spec target t).2 with Some t' => nary_tree_wf_no_len t' | None => True end.
+      induction t as [[low high]|[low high] ts] using nary_tree_ind'.
+      - admit.
+      - cbn.
+        remember ((fix insert_aux (l : list nary_tree) : list nary_tree :=
+             match l with
+             | [] => []
+             | [t] =>
+                 let (new_t1, new_t2) := insert_nary_tree_spec target t in
+                 match new_t2 with
+                 | Some new_t2' => [new_t1; new_t2']
+                 | None => [new_t1]
+                 end
+             | t :: (_ :: _) as ts0 =>
+                 let (low0, high0) := nary_tree_interval t in
+                 if Z.leb target high0
+                 then
+                  let (new_t1, new_t2) := insert_nary_tree_spec target t in
+                  match new_t2 with
+                  | Some new_t2' => new_t1 :: new_t2' :: ts0
+                  | None => new_t1 :: ts0
+                  end
+                 else t :: insert_aux ts0
+             end) ts) as new_ts.
+        destruct (Z.ltb b (length new_ts)) eqn:Hblt.
+        + cbn.
+          admit.
+        + cbn.
+          clear Hblt.
+          inversion_clear t_wf
+            as [| ? ? ? ? low_le_high intervals_in_interval trees_wf intervals_sorted].
+          assert (match last (map snd intervals) with Some x => x | None => high end = high) as high_last by admit.
+          revert dependent new_ts.
+          induction ts as [|thd trest].
+          * intros; rewrite Heqnew_ts; cbn; split; [constructor|]; done.
+          * intros.
+            cbn in intervals.
+            destruct (nary_tree_interval thd) as [low' high'] eqn:?.
+            apply Forall_cons in H, intervals_in_interval, trees_wf.
+            cbn in high_last.
+            destruct H as [Hthd Htrest],
+                intervals_in_interval as [intint_thd intint_trest],
+                  trees_wf as [thd_wf trest_wf],
+                    intervals_sorted as [intsort_thd intsort_trest].
+            specialize (Hthd thd_wf).
+            remember ((fix insert_aux (l : list nary_tree) : list nary_tree :=
+                               match l with
+                               | [] => []
+                               | [t] =>
+                                   let (new_t1, new_t2) := insert_nary_tree_spec target t in
+                                   match new_t2 with
+                                   | Some new_t2' => [new_t1; new_t2']
+                                   | None => [new_t1]
+                                   end
+                               | t :: (_ :: _) as ts0 =>
+                                   let (low0, high0) := nary_tree_interval t in
+                                   if (target <=? high0)%Z
+                                   then
+                                    let (new_t1, new_t2) := insert_nary_tree_spec target t in
+                                    match new_t2 with
+                                    | Some new_t2' => new_t1 :: new_t2' :: ts0
+                                    | None => new_t1 :: ts0
+                                    end
+                                   else t :: insert_aux ts0
+                               end) trest) as new_trest.
+            assert (match last (map snd (map nary_tree_interval trest)) with
+                    | Some x => x
+                    | None => high
+                    end = high)
+              as high_last'
+              by (destruct trest; [|cbn in high_last; cbn]; done).
+            specialize (IHtrest Htrest intint_trest trest_wf intsort_trest high_last' new_trest eq_refl).
+            destruct IHtrest as [IHtrest _].
+            split; [|done].
+            constructor.
+            -- specialize (insert_nary_tree_interval_list target (thd :: trest) (Forall_cons_2 _ _ _ thd_wf trest_wf) low high) as new_ts_interval.
+               cbn in new_ts_interval.
+               rewrite <- Heqnew_trest in new_ts_interval.
+               rewrite Heqp in new_ts_interval.
+               rewrite <- Heqnew_ts in new_ts_interval.
+               destruct new_ts_interval as [[-> ->] | [(-> & Htargetltold & ->) | (-> & Holdlttarget & ->)]].
+               ++ rewrite high_last; cbn; inversion thd_wf; subst; inversion Heqp; lia.
+               ++ rewrite high_last; cbn in Htargetltold; cbn; inversion thd_wf; subst; inversion Heqp; lia.
+               ++ rewrite high_last in Holdlttarget; cbn; inversion thd_wf; subst; inversion Heqp; lia.
+            -- inversion_clear IHtrest as [| ? ? ? ? _ intint_new_trest _ _].
+               destruct trest.
+               ++ destruct (insert_nary_tree_spec target thd) eqn:?; cbn in Hthd; destruct Hthd.
+                  destruct o; subst new_ts; cbn.
+                  ** specialize (insert_nary_tree_interval_Some_inside target thd thd_wf)
+                       as new_ts_interval;
+                       cbn in new_ts_interval;
+                       rewrite Heqp0 in new_ts_interval;
+                       specialize (new_ts_interval n0 eq_refl).
+                     revert new_ts_interval.
+                     inversion_clear H; inversion_clear H0;
+                       cbn; intro;
+                       apply Forall_cons_2; try apply Forall_cons_2;
+                       try lia; done.
+                  ** inversion_clear H; cbn; apply Forall_cons_2; try lia; done.
+               ++ destruct ((target <=? high')%Z) eqn:?.
+                  ** destruct (insert_nary_tree_spec target thd) eqn:?; destruct o; subst new_ts.
+                     --- specialize (insert_nary_tree_interval_Some_inside target thd thd_wf)
+                           as new_ts_interval;
+                           cbn in new_ts_interval;
+                           rewrite Heqp0 in new_ts_interval;
+                           specialize (new_ts_interval n1 eq_refl).
+                         specialize (insert_nary_tree_interval_Some target thd thd_wf)
+                           as new_ts_interval';
+                           rewrite Heqp0 in new_ts_interval';
+                           cbn in new_ts_interval';
+                           specialize (new_ts_interval' n1 eq_refl).
+                         cbn; rewrite high_last'.
+                         clear dependent new_trest.
+                         (* all good here but need to destruct everything and lia *)
+                         admit.
+                     --- admit.
+                  ** assert (not (new_trest = [])).
+                     { intro; subst new_trest; destruct trest.
+                       + destruct (insert_nary_tree_spec target n); destruct o; discriminate.
+                       + destruct (nary_tree_interval n); destruct (target <=? z0)%Z; [|discriminate].
+                         destruct (insert_nary_tree_spec target n); destruct o; discriminate. }
+                     subst new_ts intervals0; cbn; apply Forall_cons; repeat split.
+                     --- rewrite Heqp; cbn; split; [done|].
+                         destruct new_trest; [done|].
+                         specialize (insert_nary_tree_interval_list target (n :: trest) trest_wf low high)
+                               as new_trest_interval;
+                               cbn in new_trest_interval;
+                               rewrite <- Heqnew_trest in new_trest_interval.
+                         cbn in intsort_thd.
+                         destruct (nary_tree_interval n0) eqn:?.
+                         cbn in new_trest_interval, intsort_thd; cbn.
+                         rewrite Heqp0; cbn.
+                         rewrite Heqp0 in new_trest_interval; cbn in new_trest_interval.
+                         rewrite Z.leb_gt in Heqb0.
+                         destruct intint_thd.
+                         rewrite high_last' in new_trest_interval.
+                         destruct new_trest_interval as [[? ->] | [(? & _ & ->) | (? & ? & ->)]]; lia.
+                     --- assert (forall interval : Z * Z,
+                                    (let (low', high') := interval in
+                                     (match head (map fst (map nary_tree_interval new_trest)) with
+                                      | Some x => x
+                                      | None => low
+                                      end ≤ low')%Z
+                                     ∧ (high'
+                                          ≤ match last (map snd (map nary_tree_interval new_trest)) with
+                                          | Some x => x
+                                          | None => high
+                                          end)%Z) ->
+                                    (let (low'0, high'0) := interval in
+                                     ((nary_tree_interval thd).1 ≤ low'0)%Z
+                                     ∧ (high'0
+                                          ≤ match last ((nary_tree_interval thd).2 :: map snd (map nary_tree_interval new_trest)) with
+                                          | Some x => x
+                                          | None => high
+                                          end)%Z)).
+                         { intros; destruct interval; destruct H0.
+                           split.
+                           - specialize (insert_nary_tree_interval_list target (n :: trest) trest_wf low high)
+                               as new_trest_interval;
+                               cbn in new_trest_interval;
+                               rewrite <- Heqnew_trest in new_trest_interval.
+                             cbn in intsort_thd.
+                             destruct (nary_tree_interval n) eqn:?.
+                             cbn in new_trest_interval, intsort_thd.
+                             rewrite Heqp; cbn.
+                             rewrite Z.leb_gt in Heqb0.
+                             destruct new_trest_interval as [[? ?] | [(? & Htargetltold & ?) | (? & ? & ?)]];
+                               inversion thd_wf; subst thd; cbn in Heqp; inversion Heqp; lia.
+                           - destruct new_trest; done. }
+                         apply (Forall_impl _ _ _ intint_new_trest H0).
+            -- inversion_clear IHtrest as [| ? ? ? ? _ _ new_trest_wf _].
+               rewrite Heqnew_ts.
+               destruct trest.
+               ++ destruct (insert_nary_tree_spec target thd); cbn in Hthd; destruct Hthd.
+                  destruct o; apply Forall_cons_2; auto.
+               ++ destruct ((target <=? high')%Z).
+                  ** destruct (insert_nary_tree_spec target thd); cbn in Hthd; destruct Hthd.
+                     destruct o; apply Forall_cons_2; auto.
+                  ** apply Forall_cons; auto.
+            -- inversion_clear IHtrest as [| ? ? ? ? _ _ _ intsort_new_trest].
+               subst intervals0.
+               rewrite Heqnew_ts.
+               destruct trest.
+               ++ destruct (insert_nary_tree_spec target thd) eqn:?; cbn in Hthd; destruct Hthd.
+                  destruct o.
+                  ** specialize (insert_nary_tree_interval_Some_inside target thd thd_wf) as new_ts_interval.
+                     cbn in new_ts_interval; rewrite Heqp0 in new_ts_interval; specialize (new_ts_interval n0 eq_refl).
+                     cbn;
+                       destruct (nary_tree_interval n), (nary_tree_interval n0);
+                       done.
+                  ** cbn; destruct (nary_tree_interval n); done.
+               ++ destruct ((target <=? high')%Z) eqn:?.
+                  ** destruct (insert_nary_tree_spec target thd) eqn:?; cbn in Hthd; destruct Hthd.
+                     destruct o.
+                     --- specialize (insert_nary_tree_interval_Some_inside target thd thd_wf) as new_ts_interval.
+                         cbn in new_ts_interval; rewrite Heqp0 in new_ts_interval; specialize (new_ts_interval n1 eq_refl).
+                         destruct (nary_tree_interval n0) eqn:?,
+                           (nary_tree_interval n1) eqn:?,
+                           (nary_tree_interval n) eqn:?;
+                           cbn; rewrite Heqp1 Heqp2 Heqp3.
+                         cbn in intsort_trest; rewrite Heqp3 in intsort_trest; destruct intsort_trest.
+                         specialize (insert_nary_tree_interval_Some target thd thd_wf) as new_ts_interval'.
+                         rewrite Heqp0 in new_ts_interval';
+                           cbn in new_ts_interval';
+                           specialize (new_ts_interval' n1 eq_refl);
+                           rewrite Heqp Heqp1 Heqp2 in new_ts_interval';
+                           cbn in new_ts_interval'.
+                         repeat split; [done| |done|done].
+                         destruct new_ts_interval' as [[? ->] | [(? & Htargetltold & ?) | (? & ? & ?)]].
+                         +++ cbn in intsort_thd; rewrite Heqp3 in intsort_thd; lia.
+                         +++ cbn in intsort_thd; rewrite Heqp3 in intsort_thd; lia.
+                         +++ rewrite Z.leb_le in Heqb0.
+                             lia.
+                     --- specialize (insert_nary_tree_interval_None target thd thd_wf) as new_ts_interval.
+                         cbn in new_ts_interval; rewrite Heqp0 in new_ts_interval; specialize (new_ts_interval eq_refl).
+                         destruct (nary_tree_interval n0) eqn:?,
+                           (nary_tree_interval n) eqn:?;
+                           cbn; rewrite Heqp1 Heqp2.
+                         cbn in intsort_trest; rewrite Heqp2 in intsort_trest; destruct intsort_trest.
+                         rewrite Heqp in new_ts_interval; cbn in new_ts_interval.
+                         cbn in intsort_thd; rewrite Heqp2 in intsort_thd.
+                         repeat split; [|done|done].
+                         destruct new_ts_interval as [[? ->] | [(? & Htargetltold & ?) | (? & ? & ?)]]; lia.
+                  ** cbn; rewrite Heqp.
+                     split; [|done].
+                     specialize (insert_nary_tree_interval_list target (n :: trest) trest_wf low high) as new_ts_interval.
+                     cbn in new_ts_interval; rewrite <- Heqnew_trest in new_ts_interval.
+                     destruct (nary_tree_interval n) eqn:?.
+                     cbn in intsort_thd; rewrite Heqp0 in intsort_thd.
+                     destruct new_trest; [done|].
+                     cbn; cbn in new_ts_interval.
+                     destruct (nary_tree_interval n0) eqn:?.
+                     cbn in new_ts_interval.
+                     destruct new_ts_interval as [[? _] | [(? & Htargetltold & _) | (? & ? & _)]].
+                     --- lia.
+                     --- rewrite Z.leb_gt in Heqb0; lia.
+                     --- lia.
+    Admitted.
+
     Definition insert_bplus_tree_wf (target : Z) (t : tree_spec) (t_wf : tree_spec_wf b t) : (tree_spec_wf b (insert_bplus_tree_spec target t)).
-      destruct t as [[low high]|[low high]].
+      destruct t as [[low high]|[low high] ts].
       - cbn; destruct (Z.leb b (length (insert_list_spec target l))) eqn:Hble.
         + rewrite Z.leb_le in Hble;
             assert (b <= length (insert_list_spec target l)) as Hble' by lia.
@@ -462,7 +919,7 @@ Section nary_tree.
               rewrite <- Hts in H;
               rewrite <- Hds in H0.
             specialize (split_list_sorted _ _ inserted_list_sorted _ _ H H0).
-              lia.
+            lia.
         + inversion t_wf; subst.
           specialize (insert_list_sorted _ target H6) as inserted_list_sorted.
           constructor.
@@ -474,8 +931,85 @@ Section nary_tree.
           * rewrite Z.leb_gt in Hble; lia.
           * done.
 
-      - admit.
-
+      - cbn.
+        remember ((fix insert_aux (l : list nary_tree) : list nary_tree :=
+             match l with
+             | [] => []
+             | [t] =>
+                 let (new_t1, new_t2) := insert_nary_tree_spec target t in
+                 match new_t2 with
+                 | Some new_t2' => [new_t1; new_t2']
+                 | None => [new_t1]
+                 end
+             | t :: (_ :: _) as ts0 =>
+                 let (low0, high0) := nary_tree_interval t in
+                 if Z.leb target high0
+                 then
+                  let (new_t1, new_t2) := insert_nary_tree_spec target t in
+                  match new_t2 with
+                  | Some new_t2' => new_t1 :: new_t2' :: ts0
+                  | None => new_t1 :: ts0
+                  end
+                 else t :: insert_aux ts0
+             end) ts) as new_ts.
+        destruct (Z.ltb b (length new_ts)) eqn:Hblt.
+        + rewrite Z.ltb_lt in Hblt.
+          assert (b < length new_ts) as Hblt' by lia.
+          assert (b <= length new_ts) as Hble by lia.
+          inversion_clear t_wf
+            as [| ? ? ? ? ? ? intervals_in_interval trees_wf intervals_sorted];
+            subst intervals.
+          constructor.
+          * specialize (bge2 b beven bpos); cbn; lia.
+          * destruct (take_b2_cons' new_ts Hble) as (thd & trest & Hts);
+              cbn in Hts; rewrite Hts.
+            destruct (drop_b2_snoc' new_ts Hble) as (dlast & dinit & Hds);
+              cbn in Hds; rewrite Hds.
+            cbn; repeat rewrite last_map_comm; rewrite last_snoc.
+            specialize (in_eq thd trest) as ?;
+              specialize (in_elt dlast dinit []) as ?.
+            rewrite <- Hts in H1; rewrite <- Hds in H2.
+            admit.
+          * cbn.
+            repeat constructor; try done.
+            -- destruct (take_b2_snoc' new_ts Hble) as (tlast & tinit & Hts);
+                 cbn in Hts; rewrite Hts.
+               destruct (drop_b2_snoc' new_ts Hble) as (dlast & dinit & Hds);
+                 cbn in Hds; rewrite Hds.
+               repeat rewrite last_map_comm; repeat rewrite last_snoc.
+               admit.
+            -- destruct (take_b2_cons' new_ts Hble) as (thd & trest & Hts);
+                 cbn in Hts; rewrite Hts.
+               destruct (drop_b2_cons' new_ts Hble) as (dhd & drest & Hds);
+                 cbn in Hds; rewrite Hds.
+               cbn.
+               admit.
+          * constructor; [|constructor]; [| |done].
+            -- constructor.
+               ++ assert (b/2 < b) by (apply Nat.div_lt; lia).
+                  assert (b/2 <= length new_ts) by lia.
+                  rewrite (take_length_le new_ts (b/2));
+                    [lia|done].
+               ++ destruct (take_b2_snoc' new_ts Hble) as (tlast & tinit & Hts);
+                    cbn in Hts; rewrite Hts;
+                    repeat rewrite last_map_comm; rewrite last_snoc;
+                    rewrite <- Hts.
+                  destruct (take_b2_cons' new_ts Hble) as (thd & trest & Hts');
+                    cbn in Hts'; rewrite Hts';
+                    cbn.
+                  admit.
+               ++ admit.
+               ++ admit.
+               ++ admit.
+            -- admit.
+          * cbn.
+            destruct (take_b2_snoc' new_ts Hble) as (tlast & tinit & Hts);
+              cbn in Hts; rewrite Hts.
+            destruct (drop_b2_cons' new_ts Hble) as (dhd & drest & Hds);
+              cbn in Hds; rewrite Hds.
+            repeat rewrite last_map_comm; rewrite last_snoc; cbn.
+            admit.
+        + admit.
     Admitted.
 
 End nary_tree.
@@ -619,7 +1153,7 @@ Section bplus_tree.
                          let: "interval" := interval_nary_tree "thd" in
                          let: "low" := Fst "interval" in
                          let: "high" := Snd "interval" in
-                         (if: (BinOp LeOp "low" "target") && (BinOp LeOp "target" "high")
+                         (if: (BinOp LeOp "target" "high")
                           then let: "newt" := "insert_nary_tree" ("thd", "target") in
                                match: Snd "newt" with
                                  NONE => "l" <- (Fst "newt", Snd !"l")
@@ -731,7 +1265,7 @@ Section bplus_tree.
                          let: "interval" := interval_nary_tree "thd" in
                          let: "low" := Fst "interval" in
                          let: "high" := Snd "interval" in
-                         (if: (BinOp LeOp "low" "target") && (BinOp LeOp "target" "high")
+                         (if: BinOp LeOp "target" "high"
                           then let: "newt" := insert_nary_tree ("thd", "target") in
                                match: Snd "newt" with
                                  NONE => "l" <- (Fst "newt", Snd !"l")
@@ -1197,28 +1731,6 @@ Section bplus_tree.
         iApply ("IH" with "[$]").
     Qed.
 
-    Lemma hd_map_comm {A B} (f : A -> B) (l : list A) (d : A) (fd : B) :
-      fd = f d -> hd (fd) (map f l) = f (hd d l).
-    Proof. destruct l; [done|auto]. Qed.
-
-    Lemma head_map_comm {A B} (f : A -> B) (l : list A) :
-      head (map f l) = match head l with None => None | Some x => Some (f x) end.
-    Proof. destruct l; [done|auto]. Qed.
-
-    Lemma Listlast_map_comm {A B} (f : A -> B) (l : list A) (d : A) (fd : B) :
-      fd = f d -> List.last (map f l) fd = f (List.last l d).
-    Proof.
-      induction l; [done|].
-      destruct l; [auto|done].
-    Qed.
-
-    Lemma last_map_comm {A B} (f : A -> B) (l : list A) :
-      last (map f l) = match last l with None => None | Some x => Some (f x) end.
-    Proof.
-      induction l; [done|].
-      destruct l; [auto|done].
-    Qed.
-
     Lemma ge_1_S n :
       1 <= n -> exists m, n = S m.
     Proof.
@@ -1237,7 +1749,7 @@ Section bplus_tree.
     Lemma Z2N_b2 : Z.div b 2 = Z.of_nat (b / 2).
     Proof. symmetry; apply Znat.Nat2Z.inj_div. Qed.
 
-    Lemma insert_nary_tree_spec_proof (t : nary_tree) (t_wf : nary_tree_wf_no_len b t) (v : val) (target : tval) :
+    Lemma insert_nary_tree_spec_proof (t : nary_tree) (t_wf : nary_tree_wf_no_len t) (v : val) (target : tval) :
       {{{ is_node v t }}}
         insert_nary_tree b (v, #target)%V
         {{{ r, RET (r.1, r.2);
@@ -1399,7 +1911,7 @@ Section bplus_tree.
                                   end
                               | t :: (_ :: _) as ts0 =>
                                   let (low0, high0) := nary_tree_interval t in
-                                  if (low0 <=? target)%Z && (target <=? high0)%Z
+                                  if (target <=? high0)%Z
                                   then
                                     let (new_t1, new_t2) := insert_nary_tree_spec b target t in
                                     match new_t2 with
@@ -1429,7 +1941,7 @@ Section bplus_tree.
                          let: "interval" := interval_nary_tree "thd" in
                          let: "low" := Fst "interval" in
                          let: "high" := Snd "interval" in
-                         (if: (BinOp LeOp "low" "target") && (BinOp LeOp "target" "high")
+                         (if: BinOp LeOp "target" "high"
                           then let: "newt" := insert_nary_tree b ("thd", "target") in
                                match: Snd "newt" with
                                  NONE => "l" <- (Fst "newt", Snd !"l")
@@ -1461,8 +1973,7 @@ Section bplus_tree.
               iEval (rewrite big_opL_cons) in "IH";
               iDestruct "IH" as "[IHthd IHtrest]";
               apply Forall_cons in trees_wf;
-              destruct trees_wf as [thd_wf trest_wf];
-              apply nary_tree_wf_remove_len in thd_wf.
+              destruct trees_wf as [thd_wf trest_wf].
             + iDestruct "Hlhd" as (l0 ?) "(-> & Hl0 & ->)".
               wp_load; wp_load; wp_pures; wp_bind (insert_nary_tree b _).
               iApply ("IHthd" $! thd_wf with "Hnhd").
@@ -1493,68 +2004,41 @@ Section bplus_tree.
                 destruct H0.
 
               wp_pures.
-              destruct (bool_decide (Z.le low' target)) eqn:?; wp_pures.
-              -- destruct (bool_decide (Z.le target high')) eqn:?; wp_pures.
-                 ++ wp_bind (insert_nary_tree b _);
-                      iApply ("IHthd" $! thd_wf with "Hnhd");
-                      iNext;
-                      iIntros (?) "[Hr1 Hr2]".
-                    wp_pures.
-                    apply bool_decide_eq_true_1 in Heqb0;
-                      apply Z.leb_le in Heqb0;
-                      rewrite Heqb0.
-                    apply bool_decide_eq_true_1 in Heqb1;
-                      apply Z.leb_le in Heqb1;
-                      rewrite Heqb1.
+              destruct (bool_decide (Z.le target high')) eqn:?; wp_pures.
+              ++ wp_bind (insert_nary_tree b _);
+                   iApply ("IHthd" $! thd_wf with "Hnhd");
+                   iNext;
+                   iIntros (?) "[Hr1 Hr2]".
+                 wp_pures.
+                 apply bool_decide_eq_true_1 in Heqb0;
+                   apply Z.leb_le in Heqb0;
+                   rewrite Heqb0.
 
-                    iDestruct "Hr2" as "[(% & % & % & -> & Hr2) | (% & ->)]";
-                      destruct (insert_nary_tree_spec b target thd) as [new_t1 new_t2];
-                      cbn in H0; subst.
-                    ** wp_load; wp_alloc l3 as "Hl3"; wp_store; wp_pure.
-                       iApply "HPost".
-                       iExists (r.1 :: r2 :: nsnd :: nrest).
-                       iSplitL "Hl1 Hl3 Hl2 Hhd'";
-                         [iExists l1, (SOMEV #l3); iFrame; iSplitR; [done|]; iExists l3, (SOMEV #l2); iFrame; iSplitR; [done|]; iExists l2, hd'0; iFrame; done|].
-                       iFrame; done.
-                    ** wp_load; wp_store; wp_pure.
-                       iApply "HPost".
-                       iExists (r.1 :: nsnd :: nrest).
-                       iSplitL "Hl1 Hl2 Hhd'";
-                         [iExists l1, (SOMEV #l2); iFrame; iSplitR; [done|]; iExists l2, hd'0; iFrame; done|].
-                       iFrame; done.
-
-                 ++ wp_load; wp_pure; wp_pure.
-                    wp_bind ((rec: "insert_node_list" "arg" := _) (SOMEV #l2, #target))%V.
-                    iApply ("IH'" $! trest_wf _ (nsnd :: nrest) (SOMEV #l2) with "[] [Hl2 Hhd'] [Hnrest]"); try done.
-                    { iExists l2, hd'0; iFrame; done. }
-                    iIntros (?) "[% [Hr Hns]]".
-                    wp_store; wp_pure.
+                 iDestruct "Hr2" as "[(% & % & % & -> & Hr2) | (% & ->)]";
+                   destruct (insert_nary_tree_spec b target thd) as [new_t1 new_t2];
+                   cbn in H0; subst.
+                 ** wp_load; wp_alloc l3 as "Hl3"; wp_store; wp_pure.
                     iApply "HPost".
-                    apply bool_decide_eq_true_1 in Heqb0;
-                      apply Z.leb_le in Heqb0;
-                      rewrite Heqb0.
-                    apply bool_decide_eq_false_1 in Heqb1;
-                      assert (Z.lt high' target) by lia;
-                      apply Z.ltb_lt in H0;
-                      rewrite Z.ltb_antisym in H0;
-                      symmetry in H0;
-                      apply negb_sym in H0;
-                      cbn in H0;
-                      rewrite H0.
-                    iExists (nhd :: ns).
-                    iFrame.
-                    iExists l1, r; iFrame; done.
+                    iExists (r.1 :: r2 :: nsnd :: nrest).
+                    iSplitL "Hl1 Hl3 Hl2 Hhd'";
+                      [iExists l1, (SOMEV #l3); iFrame; iSplitR; [done|]; iExists l3, (SOMEV #l2); iFrame; iSplitR; [done|]; iExists l2, hd'0; iFrame; done|].
+                    iFrame; done.
+                 ** wp_load; wp_store; wp_pure.
+                    iApply "HPost".
+                    iExists (r.1 :: nsnd :: nrest).
+                    iSplitL "Hl1 Hl2 Hhd'";
+                      [iExists l1, (SOMEV #l2); iFrame; iSplitR; [done|]; iExists l2, hd'0; iFrame; done|].
+                    iFrame; done.
 
-              -- wp_load; wp_pure; wp_pure;
-                   wp_bind ((rec: "insert_node_list" "arg" := _) (SOMEV #l2, #target))%V.
-                 iApply ("IH'" $! trest_wf _ (nsnd :: nrest) with "[] [Hl2 Hhd'] [Hnrest]"); try done.
+              ++ wp_load; wp_pure; wp_pure.
+                 wp_bind ((rec: "insert_node_list" "arg" := _) (SOMEV #l2, #target))%V.
+                 iApply ("IH'" $! trest_wf _ (nsnd :: nrest) (SOMEV #l2) with "[] [Hl2 Hhd'] [Hnrest]"); try done.
                  { iExists l2, hd'0; iFrame; done. }
                  iIntros (?) "[% [Hr Hns]]".
-                 wp_store; wp_pures.
+                 wp_store; wp_pure.
                  iApply "HPost".
-
                  apply bool_decide_eq_false_1 in Heqb0;
-                   assert (Z.lt target low') by lia;
+                   assert (Z.lt high' target) by lia;
                    apply Z.ltb_lt in H0;
                    rewrite Z.ltb_antisym in H0;
                    symmetry in H0;
@@ -1599,7 +2083,7 @@ Section bplus_tree.
                          end
                      | t :: (_ :: _) as ts0 =>
                          let (low0, high0) := nary_tree_interval t in
-                         if (low0 <=? target)%Z && (target <=? high0)%Z
+                         if (target <=? high0)%Z
                          then
                            let (new_t1, new_t2) := insert_nary_tree_spec b target t in
                            match new_t2 with
@@ -2034,7 +2518,7 @@ Section bplus_tree.
                                   end
                               | t :: (_ :: _) as ts0 =>
                                   let (low0, high0) := nary_tree_interval t in
-                                  if (low0 <=? target)%Z && (target <=? high0)%Z
+                                  if (target <=? high0)%Z
                                   then
                                     let (new_t1, new_t2) := insert_nary_tree_spec b target t in
                                     match new_t2 with
@@ -2064,7 +2548,7 @@ Section bplus_tree.
                          let: "interval" := interval_nary_tree "thd" in
                          let: "low" := Fst "interval" in
                          let: "high" := Snd "interval" in
-                         (if: (BinOp LeOp "low" "target") && (BinOp LeOp "target" "high")
+                         (if: BinOp LeOp "target" "high"
                           then let: "newt" := insert_nary_tree b ("thd", "target") in
                                match: Snd "newt" with
                                  NONE => "l" <- (Fst "newt", Snd !"l")
@@ -2126,68 +2610,41 @@ Section bplus_tree.
                 destruct H.
 
               wp_pures.
-              destruct (bool_decide (Z.le low' target)) eqn:?; wp_pures.
-              -- destruct (bool_decide (Z.le target high')) eqn:?; wp_pures.
-                 ++ wp_bind (insert_nary_tree b _);
-                      iApply ((insert_nary_tree_spec_proof _ thd_wf) with "Hnhd");
-                      iNext;
-                      iIntros (?) "[Hr1 Hr2]".
-                    wp_pures.
-                    apply bool_decide_eq_true_1 in Heqb0;
-                      apply Z.leb_le in Heqb0;
-                      rewrite Heqb0.
-                    apply bool_decide_eq_true_1 in Heqb1;
-                      apply Z.leb_le in Heqb1;
-                      rewrite Heqb1.
+              destruct (bool_decide (Z.le target high')) eqn:?; wp_pures.
+              ++ wp_bind (insert_nary_tree b _);
+                   iApply ((insert_nary_tree_spec_proof _ thd_wf) with "Hnhd");
+                   iNext;
+                   iIntros (?) "[Hr1 Hr2]".
+                 wp_pures.
+                 apply bool_decide_eq_true_1 in Heqb0;
+                   apply Z.leb_le in Heqb0;
+                   rewrite Heqb0.
 
-                    iDestruct "Hr2" as "[(% & % & % & -> & Hr2) | (% & ->)]";
-                      destruct (insert_nary_tree_spec b target thd) as [new_t1 new_t2];
-                      cbn in H; subst.
-                    ** wp_load; wp_alloc l3 as "Hl3"; wp_store; wp_pure.
-                       iApply "HPost".
-                       iExists (r.1 :: r2 :: nsnd :: nrest).
-                       iSplitL "Hl1 Hl3 Hl2 Hhd'";
-                         [iExists l1, (SOMEV #l3); iFrame; iSplitR; [done|]; iExists l3, (SOMEV #l2); iFrame; iSplitR; [done|]; iExists l2, hd'0; iFrame; done|].
-                       iFrame; done.
-                    ** wp_load; wp_store; wp_pure.
-                       iApply "HPost".
-                       iExists (r.1 :: nsnd :: nrest).
-                       iSplitL "Hl1 Hl2 Hhd'";
-                         [iExists l1, (SOMEV #l2); iFrame; iSplitR; [done|]; iExists l2, hd'0; iFrame; done|].
-                       iFrame; done.
-
-                 ++ wp_load; wp_pure; wp_pure.
-                    wp_bind ((rec: "insert_node_list" "arg" := _) (SOMEV #l2, #target))%V.
-                    iApply ("IH'" $! trest_wf _ (nsnd :: nrest) (SOMEV #l2) with "[Hl2 Hhd'] [Hnrest]"); try done.
-                    { iExists l2, hd'0; iFrame; done. }
-                    iIntros (?) "[% [Hr Hns]]".
-                    wp_store; wp_pure.
+                 iDestruct "Hr2" as "[(% & % & % & -> & Hr2) | (% & ->)]";
+                   destruct (insert_nary_tree_spec b target thd) as [new_t1 new_t2];
+                   cbn in H; subst.
+                 ** wp_load; wp_alloc l3 as "Hl3"; wp_store; wp_pure.
                     iApply "HPost".
-                    apply bool_decide_eq_true_1 in Heqb0;
-                      apply Z.leb_le in Heqb0;
-                      rewrite Heqb0.
-                    apply bool_decide_eq_false_1 in Heqb1;
-                      assert (Z.lt high' target) by lia;
-                      apply Z.ltb_lt in H;
-                      rewrite Z.ltb_antisym in H;
-                      symmetry in H;
-                      apply negb_sym in H;
-                      cbn in H;
-                      rewrite H.
-                    iExists (nhd :: ns).
-                    iFrame.
-                    iExists l1, r; iFrame; done.
+                    iExists (r.1 :: r2 :: nsnd :: nrest).
+                    iSplitL "Hl1 Hl3 Hl2 Hhd'";
+                      [iExists l1, (SOMEV #l3); iFrame; iSplitR; [done|]; iExists l3, (SOMEV #l2); iFrame; iSplitR; [done|]; iExists l2, hd'0; iFrame; done|].
+                    iFrame; done.
+                 ** wp_load; wp_store; wp_pure.
+                    iApply "HPost".
+                    iExists (r.1 :: nsnd :: nrest).
+                    iSplitL "Hl1 Hl2 Hhd'";
+                      [iExists l1, (SOMEV #l2); iFrame; iSplitR; [done|]; iExists l2, hd'0; iFrame; done|].
+                    iFrame; done.
 
-              -- wp_load; wp_pure; wp_pure;
-                   wp_bind ((rec: "insert_node_list" "arg" := _) (SOMEV #l2, #target))%V.
-                 iApply ("IH'" $! trest_wf _ (nsnd :: nrest) with "[Hl2 Hhd'] [Hnrest]"); try done.
+              ++ wp_load; wp_pure; wp_pure.
+                 wp_bind ((rec: "insert_node_list" "arg" := _) (SOMEV #l2, #target))%V.
+                 iApply ("IH'" $! trest_wf _ (nsnd :: nrest) (SOMEV #l2) with "[Hl2 Hhd'] [Hnrest]"); try done.
                  { iExists l2, hd'0; iFrame; done. }
                  iIntros (?) "[% [Hr Hns]]".
-                 wp_store; wp_pures.
+                 wp_store; wp_pure.
                  iApply "HPost".
-
                  apply bool_decide_eq_false_1 in Heqb0;
-                   assert (Z.lt target low') by lia;
+                   assert (Z.lt high' target) by lia;
                    apply Z.ltb_lt in H;
                    rewrite Z.ltb_antisym in H;
                    symmetry in H;
@@ -2230,7 +2687,7 @@ Section bplus_tree.
                          end
                      | t :: (_ :: _) as ts0 =>
                          let (low0, high0) := nary_tree_interval t in
-                         if (low0 <=? target)%Z && (target <=? high0)%Z
+                         if (target <=? high0)%Z
                          then
                            let (new_t1, new_t2) := insert_nary_tree_spec b target t in
                            match new_t2 with

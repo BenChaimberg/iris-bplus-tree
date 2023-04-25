@@ -110,7 +110,7 @@ Section bplus_tree.
             done.
     Qed.
 
-    Lemma search_nary_tree_spec (t : nary_tree) (t_wf : nary_tree_wf_no_len b t) (v : val) (target : nat) :
+    Lemma search_nary_tree_spec (t : nary_tree) (t_wf : nary_tree_wf_no_len t) (v : val) (target : nat) :
       {{{ is_node v t }}} search_bplus_tree (v, #target)%V {{{ r, RET r; ⌜ r = #(In_nary_tree target t) ⌝ ∗ is_node v t }}}.
     Proof using bpos.
       iIntros (Φ) "Hv HPost".
@@ -211,7 +211,7 @@ Section bplus_tree.
               wp_load; wp_load; wp_pures.
               destruct (bool_decide (Z.le low' target)) eqn:?; wp_pures.
               -- destruct (bool_decide (Z.le target high')) eqn:?; wp_pures.
-                 ++ iApply ("IHthd" $! (nary_tree_wf_remove_len _ _ t_wf) with "[Hptr' Hleaves]").
+                 ++ iApply ("IHthd" $! t_wf with "[Hptr' Hleaves]").
                     { iExists ptr', leaves.
                       iFrame.
                       done. }
@@ -229,7 +229,7 @@ Section bplus_tree.
                                  | [] => false
                                  | t0 :: ts => In_nary_tree target t0 || In_aux ts
                                  end) trest = false) as not_in_others.
-                      { apply (nary_tree_in_interval_not_in_others b _ (leaf (low', high') l)).
+                      { apply (nary_tree_in_interval_not_in_others _ (leaf (low', high') l)).
                         - constructor; done.
                         - done.
                         - done. }
@@ -310,7 +310,7 @@ Section bplus_tree.
               wp_load; wp_load; wp_pures.
               destruct (bool_decide (Z.le low' target)) eqn:?; wp_pures.
               -- destruct (bool_decide (Z.le target high')) eqn:?; wp_pures.
-                 ++ iApply ("IHthd" $! (nary_tree_wf_remove_len _ _ t_wf) with "[Hptr' Hleaves]").
+                 ++ iApply ("IHthd" $! t_wf with "[Hptr' Hleaves]").
                     { iExists ptr', leaves, ns.
                       iFrame.
                       done. }
@@ -329,7 +329,7 @@ Section bplus_tree.
                                  | [] => false
                                  | t0 :: ts => In_nary_tree target t0 || In_aux ts
                                  end) trest = false) as not_in_others.
-                      { apply (nary_tree_in_interval_not_in_others b _ (node (low', high') l)).
+                      { apply (nary_tree_in_interval_not_in_others _ (node (low', high') l)).
                         - constructor; done.
                         - done.
                         - done. }
@@ -363,7 +363,7 @@ Section bplus_tree.
                       { apply bool_decide_eq_false_1 in Heqb1.
                         lia. }
                       inversion t_wf; subst.
-                      apply (target_above_below_not_in_node b); [|right]; done. }
+                      apply target_above_below_not_in_node; [|right]; done. }
                     iFrame.
                     iSplitL "Hl0 Hhd'".
                     { iExists l0, hd'.
@@ -394,7 +394,7 @@ Section bplus_tree.
                    { apply bool_decide_eq_false_1 in Heqb0.
                      lia. }
                    inversion t_wf; subst.
-                   apply (target_above_below_not_in_node b); [|left]; done. }
+                   apply target_above_below_not_in_node; [|left]; done. }
                  iFrame.
                  iSplitL "Hl0 Hhd'".
                  { iExists l0, hd'.
@@ -413,7 +413,7 @@ Section bplus_tree.
         iExists ptr, lhd, ns.
         iFrame.
         done.
-    Qed.               
+    Qed.
 
     Theorem search_bplus_tree_spec (t : tree_spec) (t_wf : tree_spec_wf b t) (v : val) (target : nat) :
       {{{ is_bplus_tree b v t t_wf }}} search_bplus_tree (v, #target)%V {{{ r, RET r; ⌜ r = #(In_bplus_tree target t) ⌝ ∗ is_bplus_tree b v t t_wf }}}.
@@ -434,7 +434,8 @@ Section bplus_tree.
         iFrame.
         done.
       - iApply (search_nary_tree_spec (node interval l) with "[Hv]").
-        { inversion t_wf; constructor; done. }
+        { inversion t_wf; constructor; try done.
+          apply (Forall_impl _ _ _ H4 (nary_tree_wf_remove_len b)); done. }
         { done. }
         iNext.
         iIntros (?) "[% Hv]".
